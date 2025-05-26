@@ -1,5 +1,3 @@
-import {ChatUser} from '../types/chat';
-
 export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;

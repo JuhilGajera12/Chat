@@ -23,7 +23,6 @@ export function navigate(name, params) {
 export const goBack = () => navigationRef.current?.goBack();
 
 export const commonAction = (name, params) => {
-  console.log(navigationRef.current);
   navigationRef.current?.dispatch(
     CommonActions.reset({
       index: 0,
