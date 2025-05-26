@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, Text, StyleSheet, Image} from 'react-native';
+import {View, Text, StyleSheet, Image, Pressable} from 'react-native';
 import {ChatMessage} from '../types/chat';
 import {colors} from '../constant/colors';
 import {fonts} from '../constant/fonts';
@@ -10,14 +10,18 @@ import {formatMessageTime} from '../utils/dateUtils';
 interface MessageBubbleProps {
   message: ChatMessage;
   isOwnMessage: boolean;
+  onLongPress?: () => void;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isOwnMessage,
+  onLongPress,
 }) => {
   const renderMessageStatus = () => {
-    if (!isOwnMessage) return null;
+    if (!isOwnMessage) {
+      return null;
+    }
 
     switch (message.status) {
       case 'sent':
@@ -27,7 +31,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       case 'read':
         return (
           <View style={styles.statusContainer}>
-            <Image source={icons.delivered} style={[styles.statusIcon, styles.readIcon]} />
+            <Image
+              source={icons.delivered}
+              style={[styles.statusIcon, styles.readIcon]}
+            />
             <Text style={styles.readText}>Read</Text>
           </View>
         );
@@ -50,20 +57,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         );
       case 'image':
         return (
-          <Image
-            source={{uri: message.metadata?.fileUrl}}
-            style={styles.messageImage}
-            resizeMode="cover"
-          />
+          <Pressable onLongPress={onLongPress}>
+            <Image
+              source={{uri: message.metadata?.fileUrl}}
+              style={styles.messageImage}
+              resizeMode="cover"
+            />
+          </Pressable>
         );
       case 'file':
         return (
-          <View style={styles.fileContainer}>
-            <Text style={styles.fileName}>{message.metadata?.fileName}</Text>
-            <Text style={styles.fileSize}>
-              {(message.metadata?.fileSize || 0) / 1024} KB
-            </Text>
-          </View>
+          <Pressable onLongPress={onLongPress} style={styles.fileContainer}>
+            <View style={styles.fileIconContainer}>
+              <Image source={icons.file} style={styles.fileIcon} />
+            </View>
+            <View style={styles.fileInfo}>
+              <Text style={styles.fileName} numberOfLines={1}>
+                {message.metadata?.fileName}
+              </Text>
+              <Text style={styles.fileSize}>
+                {(message.metadata?.fileSize || 0) / 1024} KB
+              </Text>
+            </View>
+          </Pressable>
         );
       default:
         return null;
@@ -71,22 +87,25 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   return (
-    <View
-      style={[
+    <Pressable
+      onLongPress={onLongPress}
+      style={({pressed}) => [
         styles.container,
         isOwnMessage ? styles.ownMessage : styles.otherMessage,
+        pressed && styles.pressed,
       ]}>
       {renderMessageContent()}
       <View style={styles.footer}>
-        <Text style={[
-          styles.timestamp,
-          isOwnMessage ? styles.ownTimestamp : styles.otherTimestamp
-        ]}>
+        <Text
+          style={[
+            styles.timestamp,
+            isOwnMessage ? styles.ownTimestamp : styles.otherTimestamp,
+          ]}>
           {formatMessageTime(message.timestamp)}
         </Text>
         {renderMessageStatus()}
       </View>
-    </View>
+    </Pressable>
   );
 };
 
@@ -95,22 +114,36 @@ const styles = StyleSheet.create({
     maxWidth: '80%',
     marginVertical: hp(0.5),
     padding: wp(3),
-    borderRadius: hp(1.5),
+    borderRadius: hp(2),
+    shadowColor: colors.black,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pressed: {
+    opacity: 0.8,
   },
   ownMessage: {
     alignSelf: 'flex-end',
     backgroundColor: colors.primaryColor,
     borderBottomRightRadius: hp(0.5),
+    marginLeft: wp(15),
   },
   otherMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.placeHolder,
+    backgroundColor: colors.inputBackground,
     borderBottomLeftRadius: hp(0.5),
+    marginRight: wp(15),
   },
   messageText: {
     fontFamily: fonts.regular,
-    fontSize: fontSize(14),
-    lineHeight: fontSize(20),
+    fontSize: fontSize(15),
+    lineHeight: fontSize(22),
+    letterSpacing: 0.2,
   },
   ownMessageText: {
     color: colors.white,
@@ -122,11 +155,32 @@ const styles = StyleSheet.create({
     width: wp(60),
     height: wp(40),
     borderRadius: hp(1),
+    backgroundColor: colors.border,
   },
   fileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.white,
     padding: wp(3),
     borderRadius: hp(1),
+    minWidth: wp(50),
+  },
+  fileIconContainer: {
+    width: wp(10),
+    height: wp(10),
+    borderRadius: wp(5),
+    backgroundColor: colors.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: wp(2),
+  },
+  fileIcon: {
+    width: wp(5),
+    height: wp(5),
+    tintColor: colors.primaryColor,
+  },
+  fileInfo: {
+    flex: 1,
   },
   fileName: {
     fontFamily: fonts.bold,
@@ -147,8 +201,9 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontFamily: fonts.regular,
-    fontSize: fontSize(10),
+    fontSize: fontSize(11),
     marginRight: wp(1),
+    opacity: 0.8,
   },
   ownTimestamp: {
     color: colors.white,

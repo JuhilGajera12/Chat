@@ -39,5 +39,5 @@ export interface ChatState {
   messages: ChatMessage[];
   loading: boolean;
   error: string | null;
-  typingUsers: { [conversationId: string]: string[] };
-} 
+  typingUsers: {[conversationId: string]: string[]};
+}

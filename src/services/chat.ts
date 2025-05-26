@@ -298,7 +298,7 @@ export const chatService = {
         )
           .then(conversations => {
             const validConversations = conversations.filter(
-              (conv): conv is Conversation => conv !== null
+              (conv): conv is Conversation => conv !== null,
             );
             callback(validConversations);
           })
