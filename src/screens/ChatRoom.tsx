@@ -37,7 +37,6 @@ const ChatRoom: React.FC<Props> = ({route, navigation}) => {
     status: 'offline' as 'online' | 'offline',
     lastSeen: null as Date | null,
   });
-  console.log('🚀 ~ userStatus:', userStatus);
 
   const flatListRef = useRef<FlatList>(null);
   const appState = useRef(AppState.currentState);

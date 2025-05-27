@@ -32,20 +32,17 @@ const ChatList: React.FC<Props> = ({navigation}) => {
 
   useEffect(() => {
     if (!currentUser) {
-      console.log('No current user found');
       setLoading(false);
       return;
     }
 
-    console.log('Setting up conversation subscription for user:', currentUser.uid);
-    
     const unsubscribeConversations = chatService.subscribeToConversations(
       currentUser.uid,
       async newConversations => {
         try {
-          console.log('Received conversations:', newConversations.length);
+          console.log('111', newConversations);
           setConversations(newConversations);
-          
+
           const userIds = new Set<string>();
           newConversations.forEach(conversation => {
             conversation.participants.forEach(id => {
@@ -55,7 +52,6 @@ const ChatList: React.FC<Props> = ({navigation}) => {
             });
           });
 
-          console.log('Fetching user data for:', Array.from(userIds));
           const userPromises = Array.from(userIds).map(async userId => {
             try {
               const user = await chatService.getUser(userId);
@@ -68,7 +64,6 @@ const ChatList: React.FC<Props> = ({navigation}) => {
           });
 
           await Promise.all(userPromises);
-          console.log('All users fetched successfully');
           setLoading(false);
         } catch (error) {
           console.error('Error in conversation subscription callback:', error);
@@ -78,7 +73,6 @@ const ChatList: React.FC<Props> = ({navigation}) => {
     );
 
     return () => {
-      console.log('Cleaning up conversation subscription');
       unsubscribeConversations();
     };
   }, [currentUser]);

@@ -36,8 +36,6 @@ const LoginScreen = ({navigation}: Props) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  console.log('--', navigationRef.current);
-
   const handleLogin = async () => {
     if (!email || !password) {
       return;
@@ -49,7 +47,6 @@ const LoginScreen = ({navigation}: Props) => {
       if (error) {
         Alert.alert('Error', error.message);
       } else if (user) {
-        console.log('1111');
         commonAction('ChatList');
       }
     } catch (error) {

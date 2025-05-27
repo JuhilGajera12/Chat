@@ -10,9 +10,6 @@ const CONVERSATIONS_COLLECTION = 'conversations';
 const USERS_COLLECTION = 'users';
 
 const toMoment = (timestamp: any): moment.Moment => {
-  if (timestamp instanceof FirebaseFirestoreTypes.Timestamp) {
-    return moment(timestamp.toDate());
-  }
   if (timestamp instanceof Date) {
     return moment(timestamp);
   }
@@ -22,14 +19,17 @@ const toMoment = (timestamp: any): moment.Moment => {
   return moment();
 };
 
+const toTimestampNumber = (momentObj: moment.Moment): number => {
+  return momentObj.valueOf();
+};
+
 export const chatService = {
   async updateUserStatus(userId: string, status: 'online' | 'offline') {
     try {
       const userRef = firestore().collection(USERS_COLLECTION).doc(userId);
       await userRef.update({
         status,
-        lastSeen:
-          status === 'offline' ? firestore.FieldValue.serverTimestamp() : null,
+        lastSeen: status === 'offline' ? toTimestampNumber(moment()) : null,
       });
     } catch (error) {
       console.error('Error updating user status:', error);
@@ -52,22 +52,17 @@ export const chatService = {
 
   subscribeToUserStatus(
     userId: string,
-    callback: (status: 'online' | 'offline', lastSeen: Date | null) => void,
+    callback: (status: 'online' | 'offline', lastSeen: number | null) => void,
   ) {
     return firestore()
       .collection(USERS_COLLECTION)
       .doc(userId)
       .onSnapshot(doc => {
         const data = doc.data();
-
         if (data) {
-          const lastSeenRaw = data.lastSeen;
-          let lastSeen: Date | null = null;
-
-          if (lastSeenRaw && typeof lastSeenRaw.toDate === 'function') {
-            lastSeen = lastSeenRaw.toDate();
-          }
-
+          const lastSeen = data.lastSeen
+            ? toTimestampNumber(toMoment(data.lastSeen))
+            : null;
           callback(data.status, lastSeen);
         }
       });
@@ -75,12 +70,14 @@ export const chatService = {
 
   async createConversation(participants: string[]): Promise<string> {
     try {
+      const now = moment();
+      const timestamp = toTimestampNumber(now);
       const conversationRef = await firestore()
         .collection(CONVERSATIONS_COLLECTION)
         .add({
           participants,
-          createdAt: firestore.FieldValue.serverTimestamp(),
-          updatedAt: firestore.FieldValue.serverTimestamp(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
           unreadCount: 0,
         });
       return conversationRef.id;
@@ -118,11 +115,12 @@ export const chatService = {
         .collection(CONVERSATIONS_COLLECTION)
         .doc(conversationId);
       const messageRef = conversationRef.collection(MESSAGES_COLLECTION).doc();
-      const now = moment().valueOf();
+      const now = moment();
+      const timestamp = toTimestampNumber(now);
 
       batch.set(messageRef, {
         ...message,
-        timestamp: now,
+        timestamp,
         status: 'sent',
       });
 
@@ -130,10 +128,10 @@ export const chatService = {
         lastMessage: {
           ...message,
           id: messageRef.id,
-          timestamp: now,
+          timestamp,
           status: 'sent',
         },
-        updatedAt: now,
+        updatedAt: timestamp,
         [`unreadCount.${message.receiverId}`]:
           firestore.FieldValue.increment(1),
       });
@@ -221,11 +219,14 @@ export const chatService = {
       .orderBy('timestamp', 'desc')
       .limit(50)
       .onSnapshot(snapshot => {
-        const messages = snapshot?.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as ChatMessage[];
-        callback(messages);
+        const messages = snapshot?.docs.map(doc => {
+          const data = doc.data() as Omit<ChatMessage, 'id'>;
+          return {
+            ...data,
+            id: doc.id,
+          } as ChatMessage;
+        });
+        callback(messages || []);
       });
   },
 
@@ -258,15 +259,24 @@ export const chatService = {
               );
               if (!otherUserId) return null;
 
-              const updatedAt = toMoment(data.updatedAt).valueOf();
-              const createdAt = toMoment(data.createdAt).valueOf();
+              const updatedAt =
+                typeof data.updatedAt === 'number'
+                  ? data.updatedAt
+                  : toTimestampNumber(toMoment(data.updatedAt));
+              const createdAt =
+                typeof data.createdAt === 'number'
+                  ? data.createdAt
+                  : toTimestampNumber(toMoment(data.createdAt));
               const otherUser = await this.getUser(otherUserId);
 
               let lastMessage = data.lastMessage;
               if (lastMessage) {
                 lastMessage = {
                   ...lastMessage,
-                  timestamp: toMoment(lastMessage.timestamp).valueOf(),
+                  timestamp:
+                    typeof lastMessage.timestamp === 'number'
+                      ? lastMessage.timestamp
+                      : toTimestampNumber(toMoment(lastMessage.timestamp)),
                 };
               }
 
@@ -329,7 +339,7 @@ export const chatService = {
       if (isTyping) {
         await typingRef.set({
           userId,
-          timestamp: firestore.FieldValue.serverTimestamp(),
+          timestamp: toTimestampNumber(moment()),
         });
       } else {
         await typingRef.delete();
