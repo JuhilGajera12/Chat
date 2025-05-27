@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
@@ -14,134 +14,124 @@ import {
   StatusBar,
   Keyboard,
 } from 'react-native';
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {RootStackParamList} from '../navigation/types';
-import auth from '@react-native-firebase/auth';
 import {fonts} from '../constant/fonts';
 import {colors} from '../constant/colors';
-import {fontSize, hp, wp} from '../helpers/globalFunction';
-import {chatService} from '../services/chat';
-import {ChatUser} from '../types/chat';
+import {fontSize, hp, navigate, wp} from '../helpers/globalFunction';
+import {ChatUser, Conversation} from '../types/chat';
 import {icons} from '../constant/icons';
+import {useChat, useAuth, useUI} from '../hooks';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'UserDiscovery'>;
+const UserDiscoveryScreen = () => {
+  const {
+    userDiscovery: {searchQuery},
+    setSearchQuery,
+  } = useUI();
 
-const UserDiscoveryScreen = ({navigation}: Props) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [users, setUsers] = useState<ChatUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    searchUsers,
+    findConversation,
+    createConversation,
+    users,
+    loading,
+    error,
+  } = useChat();
+  const {user: currentUser} = useAuth();
 
   useEffect(() => {
-    const searchUsers = async () => {
-      if (searchQuery.length < 2) {
-        setUsers([]);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      try {
-        const results = await chatService.searchUsers(searchQuery);
-        setUsers(results);
-      } catch (err) {
-        setError('Failed to search users');
-        console.error('Search error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const debounceTimer = setTimeout(searchUsers, 500);
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery]);
+    if (searchQuery.trim()) {
+      searchUsers(searchQuery.trim());
+    }
+  }, [searchQuery, searchUsers]);
 
   const handleStartChat = async (user: ChatUser) => {
     try {
-      // Get current user ID from auth
-      const currentUser = auth().currentUser;
-      if (!currentUser) {
-        throw new Error('User not authenticated');
-      }
+      if (!currentUser) throw new Error('User not authenticated');
 
       // Check if conversation already exists
-      const existingConversation = await chatService.findConversation(
-        currentUser.uid,
-        user.id,
-      );
+      const result = await findConversation(currentUser.uid, user.id);
+      const existingConversation = result.payload as Conversation | null;
 
       if (existingConversation) {
         // Navigate to existing conversation
-        navigation.navigate('ChatRoom', {
+        navigate('ChatRoom', {
           conversationId: existingConversation.id,
           otherUserId: user.id,
           otherUserName: user.displayName,
         });
-      } else {
-        // Create new conversation
-        const conversationId = await chatService.createConversation([
-          currentUser.uid,
-          user.id,
-        ]);
+        return;
+      }
 
+      // Create new conversation
+      const newResult = await createConversation([currentUser.uid, user.id]);
+      const newConversation = newResult.payload as Conversation;
+
+      if (newConversation) {
         // Navigate to new conversation
-        navigation.navigate('ChatRoom', {
-          conversationId,
+        navigate('ChatRoom', {
+          conversationId: newConversation.id,
           otherUserId: user.id,
-          otherUserName: user.displayName,
+          otherUserName: user.name,
         });
       }
-    } catch (err) {
+    } catch (error) {
       Alert.alert('Error', 'Failed to start chat');
-      console.error('Start chat error:', err);
     }
   };
 
-  const renderUserItem = ({item}: {item: ChatUser}) => (
-    <TouchableOpacity
-      style={styles.userItem}
-      onPress={() => handleStartChat(item)}
-      activeOpacity={0.7}>
-      <View style={styles.userInfo}>
-        <View style={styles.avatarContainer}>
-          {item.photoURL ? (
-            <Image source={{uri: item.photoURL}} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarText}>
-                {item.displayName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          <View
-            style={[
-              styles.statusIndicator,
-              {
-                backgroundColor:
-                  item.status === 'online'
-                    ? colors.success
-                    : colors.placeHolder,
-              },
-            ]}
-          />
+  const renderUserItem = ({item}: {item: ChatUser}) => {
+    const initials = item.displayName
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .toUpperCase();
+
+    return (
+      <TouchableOpacity
+        style={styles.userItem}
+        onPress={() => handleStartChat(item)}
+        activeOpacity={0.7}>
+        <View style={styles.userInfo}>
+          <View style={styles.avatarContainer}>
+            {item.photoURL ? (
+              <Image
+                source={{uri: item.photoURL}}
+                style={styles.avatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+            <View
+              style={[
+                styles.statusIndicator,
+                {
+                  backgroundColor:
+                    item.status === 'online'
+                      ? colors.success
+                      : colors.placeHolder,
+                },
+              ]}
+            />
+          </View>
+          <View style={styles.userDetails}>
+            <Text style={styles.userName}>{item.displayName}</Text>
+            <Text style={styles.userEmail}>{item.email}</Text>
+          </View>
         </View>
-        <View style={styles.userDetails}>
-          <Text style={styles.userName} numberOfLines={1}>
-            {item.displayName}
-          </Text>
-          <Text style={styles.userEmail} numberOfLines={1}>
-            {item.email}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.chatButton}>
-        <Image
-          source={icons.send}
-          style={styles.chatIcon}
-          tintColor={colors.primaryColor}
-        />
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  };
+
+  const listEmptyComponent = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>
+        {searchQuery.trim()
+          ? 'No users found'
+          : 'Search for users to start chatting'}
+      </Text>
+    </View>
   );
 
   return (
@@ -202,37 +192,9 @@ const UserDiscoveryScreen = ({navigation}: Props) => {
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              {searchQuery.length >= 2 ? (
-                <>
-                  <Image
-                    source={icons.emptyChat}
-                    style={styles.emptyIcon}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.emptyText}>No users found</Text>
-                  <Text style={styles.emptySubText}>
-                    Try searching with a different name
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Image
-                    source={icons.user}
-                    style={styles.emptyIcon}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.emptyText}>
-                    Start typing to search for users
-                  </Text>
-                  <Text style={styles.emptySubText}>
-                    Enter at least 2 characters to begin searching
-                  </Text>
-                </>
-              )}
-            </View>
-          }
+          keyboardDismissMode="on-drag"
+          initialNumToRender={10}
+          ListEmptyComponent={listEmptyComponent}
         />
       )}
     </SafeAreaView>
@@ -341,19 +303,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize(14),
     color: colors.placeHolder,
   },
-  chatButton: {
-    width: wp(10),
-    height: wp(10),
-    borderRadius: wp(5),
-    backgroundColor: colors.inputBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: wp(2),
-  },
-  chatIcon: {
-    width: wp(5),
-    height: wp(5),
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -363,7 +312,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: wp(4),
+    paddingHorizontal: wp(6),
   },
   errorText: {
     fontFamily: fonts.regular,
@@ -387,28 +336,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: hp(10),
-    paddingHorizontal: wp(4),
-  },
-  emptyIcon: {
-    width: wp(40),
-    height: wp(40),
-    marginBottom: hp(2),
-    opacity: 0.5,
+    paddingHorizontal: wp(6),
+    paddingTop: hp(20),
   },
   emptyText: {
-    fontFamily: fonts.bold,
-    fontSize: fontSize(18),
-    color: colors.black,
-    marginBottom: hp(1),
-    textAlign: 'center',
-  },
-  emptySubText: {
     fontFamily: fonts.regular,
-    fontSize: fontSize(14),
+    fontSize: fontSize(16),
     color: colors.placeHolder,
     textAlign: 'center',
   },
 });
 
-export default UserDiscoveryScreen;
+export default React.memo(UserDiscoveryScreen);

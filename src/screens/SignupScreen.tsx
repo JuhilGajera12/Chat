@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
@@ -14,24 +14,43 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {RootStackParamList} from '../navigation/types';
 import {fonts} from '../constant/fonts';
-import {fontSize, hp, wp, commonAction} from '../helpers/globalFunction';
+import {
+  fontSize,
+  hp,
+  wp,
+  commonAction,
+  navigate,
+} from '../helpers/globalFunction';
 import {colors} from '../constant/colors';
 import {icons} from '../constant/icons';
-import {signUpWithEmail, createUserProfile} from '../services/auth';
+import {useAuth} from '../hooks';
+import {useSignupForm} from '../hooks/useForm';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Signup'>;
+const SignupScreen = () => {
+  const {
+    name,
+    email,
+    password,
+    confirmPassword,
+    showPassword,
+    showConfirmPassword,
+    setName,
+    setEmail,
+    setPassword,
+    setConfirmPassword,
+    togglePasswordVisibility,
+    toggleConfirmPasswordVisibility,
+    resetForm,
+  } = useSignupForm();
 
-const SignupScreen = ({navigation}: Props) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const {
+    signUpWithEmail,
+    createUserProfile,
+    loading: authLoading,
+    error: authError,
+    user,
+  } = useAuth();
 
   const isFormValid =
     name &&
@@ -40,37 +59,51 @@ const SignupScreen = ({navigation}: Props) => {
     confirmPassword &&
     password === confirmPassword;
 
+  useEffect(() => {
+    if (authError) {
+      Alert.alert('Error', authError.message);
+    }
+  }, [authError]);
+
+  useEffect(() => {
+    const setupUser = async () => {
+      if (user) {
+        try {
+          // Update user profile with name in Auth
+          await user.updateProfile({
+            displayName: name,
+          });
+
+          // Create user profile in Firestore
+          await createUserProfile(user, name);
+
+          // Reset form and navigate
+          resetForm();
+          commonAction('ChatList');
+        } catch (error: any) {
+          Alert.alert('Error', error.message || 'Failed to setup user profile');
+        }
+      }
+    };
+
+    setupUser();
+  }, [user, name, createUserProfile, resetForm]);
+
   const handleSignup = async () => {
     if (!isFormValid) {
       return;
     }
 
-    setLoading(true);
     try {
-      const {user, error} = await signUpWithEmail(email, password);
-      if (error) {
-        Alert.alert('Error', error.message);
-      } else if (user) {
-        // Update user profile with name in Auth
-        await user.updateProfile({
-          displayName: name,
-        });
-
-        // Create user profile in Firestore
-        const {error: profileError} = await createUserProfile(user, name);
-        if (profileError) {
-          Alert.alert('Error', profileError.message);
-          return;
-        }
-
-        // Navigate to chat list screen using commonAction
-        commonAction('ChatList');
-      }
+      await signUpWithEmail(email, password);
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
+      // Error is handled by useEffect
     }
+  };
+
+  const handleLogin = () => {
+    resetForm();
+    navigate('Login');
   };
 
   return (
@@ -85,13 +118,13 @@ const SignupScreen = ({navigation}: Props) => {
         style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={false}>
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
           <View style={styles.contentContainer}>
             <View style={styles.headerContainer}>
               <Text style={styles.welcomeText}>Create Account</Text>
               <Text style={styles.subtitleText}>
-                Join us and start your journey today
+                Join us and start chatting with friends!
               </Text>
             </View>
 
@@ -108,6 +141,7 @@ const SignupScreen = ({navigation}: Props) => {
                     placeholder="Enter your full name"
                     value={name}
                     onChangeText={setName}
+                    autoCapitalize="words"
                     placeholderTextColor={colors.placeHolder}
                   />
                 </View>
@@ -148,7 +182,7 @@ const SignupScreen = ({navigation}: Props) => {
                     placeholderTextColor={colors.placeHolder}
                   />
                   <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
+                    onPress={togglePasswordVisibility}
                     style={styles.eyeIcon}>
                     <Image
                       source={showPassword ? icons.eyeOpen : icons.eyeClosed}
@@ -175,7 +209,7 @@ const SignupScreen = ({navigation}: Props) => {
                     placeholderTextColor={colors.placeHolder}
                   />
                   <TouchableOpacity
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    onPress={toggleConfirmPasswordVisibility}
                     style={styles.eyeIcon}>
                     <Image
                       source={
@@ -186,33 +220,28 @@ const SignupScreen = ({navigation}: Props) => {
                     />
                   </TouchableOpacity>
                 </View>
-                {confirmPassword.length > 0 && password !== confirmPassword && (
-                  <Text style={styles.errorText}>Passwords do not match</Text>
-                )}
               </View>
 
               <TouchableOpacity
                 style={[
                   styles.signupButton,
-                  (!isFormValid || loading) && styles.signupButtonDisabled,
+                  (!isFormValid || authLoading) && styles.signupButtonDisabled,
                 ]}
                 onPress={handleSignup}
-                disabled={!isFormValid || loading}>
-                {loading ? (
+                disabled={!isFormValid || authLoading}>
+                {authLoading ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.signupButtonText}>Create Account</Text>
+                  <Text style={styles.signupButtonText}>Sign Up</Text>
                 )}
               </TouchableOpacity>
-            </View>
 
-            <View style={styles.footerContainer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Login')}
-                style={styles.loginButton}>
-                <Text style={styles.loginText}>Sign In</Text>
-              </TouchableOpacity>
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>Already have an account? </Text>
+                <TouchableOpacity onPress={handleLogin}>
+                  <Text style={styles.loginLink}>Sign In</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -242,7 +271,7 @@ const styles = StyleSheet.create({
     marginBottom: hp(8),
   },
   welcomeText: {
-    fontFamily: fonts.bold,
+    fontFamily: fonts.black,
     fontSize: fontSize(32),
     color: colors.primaryColor,
     marginBottom: hp(1),
@@ -291,13 +320,6 @@ const styles = StyleSheet.create({
     height: '100%',
     letterSpacing: 0.2,
   },
-  errorText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize(12),
-    color: colors.error,
-    marginTop: hp(0.5),
-    letterSpacing: 0.2,
-  },
   eyeIcon: {
     padding: wp(2),
     marginLeft: wp(1),
@@ -309,41 +331,38 @@ const styles = StyleSheet.create({
   },
   signupButton: {
     backgroundColor: colors.primaryColor,
-    height: hp(6),
     borderRadius: hp(1),
+    height: hp(6),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: hp(6),
+    marginBottom: hp(4),
   },
   signupButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   signupButtonText: {
     fontFamily: fonts.bold,
-    fontSize: fontSize(15),
+    fontSize: fontSize(16),
     color: colors.white,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
-  footerContainer: {
+  loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 'auto',
-    paddingTop: hp(4),
-  },
-  footerText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize(14),
-    color: colors.placeHolder,
-  },
-  loginButton: {
-    marginLeft: wp(1),
   },
   loginText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize(14),
+    color: colors.black,
+    letterSpacing: 0.2,
+  },
+  loginLink: {
     fontFamily: fonts.bold,
     fontSize: fontSize(14),
     color: colors.primaryColor,
+    letterSpacing: 0.2,
   },
 });
 
-export default SignupScreen;
+export default React.memo(SignupScreen);

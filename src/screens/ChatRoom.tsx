@@ -1,235 +1,160 @@
-import React, {useEffect, useState, useRef} from 'react';
+import React, {useEffect, useRef} from 'react';
 import {
   View,
+  Text,
   StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
   SafeAreaView,
   StatusBar,
-  Text,
-  AppState,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
   Image,
+  ActivityIndicator,
+  AppState,
 } from 'react-native';
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {RootStackParamList} from '../navigation/types';
-import {colors} from '../constant/colors';
 import {fonts} from '../constant/fonts';
 import {fontSize, hp, wp} from '../helpers/globalFunction';
-import {chatService} from '../services/chat';
-import {ChatMessage} from '../types/chat';
-import MessageBubble from '../components/MessageBubble';
-import ChatInput from '../components/ChatInput';
-import auth from '@react-native-firebase/auth';
-import {formatLastSeen} from '../utils/dateUtils';
+import {colors} from '../constant/colors';
 import {icons} from '../constant/icons';
+import {useChat, useAuth, useUI} from '../hooks';
+import {ChatMessage} from '../types/chat';
+import {RouteProp} from '@react-navigation/native';
+import {RootStackParamList} from '../navigation/types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ChatRoom'>;
+type Props = {
+  route: RouteProp<RootStackParamList, 'ChatRoom'>;
+};
 
-const ChatRoom: React.FC<Props> = ({route, navigation}) => {
-  const {conversationId, otherUserId, otherUserName} = route.params;
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [userStatus, setUserStatus] = useState({
-    status: 'offline' as 'online' | 'offline',
-    lastSeen: null as Date | null,
-  });
-
+const ChatRoom: React.FC<Props> = ({route}) => {
+  const {conversationId, otherUserName} = route.params;
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
   const appState = useRef(AppState.currentState);
-  const currentUser = auth().currentUser;
-  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(
-    null,
-  );
+  const [messageText, setMessageText] = React.useState('');
+
+  const {
+    chatRoom: {typingUsers},
+    resetChatRoom,
+  } = useUI();
+
+  const {
+    sendMessage,
+    setTypingStatus,
+    updateUserStatus,
+    markConversationAsRead,
+    messages,
+    loading,
+    error,
+  } = useChat();
+
+  const {user: currentUser} = useAuth();
 
   useEffect(() => {
-    if (!currentUser) {
-      return;
-    }
-
-    const unsubscribeMessages = chatService.subscribeToMessages(
-      conversationId,
-      newMessages => {
-        const sortedMessages = [...newMessages].sort(
-          (a, b) => b.timestamp - a.timestamp,
-        );
-        setMessages(sortedMessages);
-        setLoading(false);
-
-        if (sortedMessages.length > 0) {
-        }
-      },
-    );
-
-    const unsubscribeTyping = chatService.subscribeToTypingStatus(
-      conversationId,
-      users => {
-        const otherTypingUsers = users.filter(id => id !== currentUser.uid);
-        setTypingUsers(otherTypingUsers);
-
-        if (otherTypingUsers.length > 0) {
-          // No need to animate typing indicator
-        }
-      },
-    );
-
-    const unsubscribeUserStatus = chatService.subscribeToUserStatus(
-      otherUserId,
-      (status, lastSeen) => {
-        setUserStatus({status, lastSeen});
-      },
-    );
-
-    chatService.updateUserStatus(currentUser.uid, 'online');
-    chatService.markConversationAsRead(conversationId, currentUser.uid);
-
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        chatService.updateUserStatus(currentUser.uid, 'online');
+        // App came to foreground
+        if (currentUser) {
+          updateUserStatus(currentUser.uid, 'online');
+        }
       } else if (nextAppState.match(/inactive|background/)) {
-        chatService.updateUserStatus(currentUser.uid, 'offline');
+        // App went to background
+        if (currentUser) {
+          updateUserStatus(currentUser.uid, 'offline');
+        }
       }
       appState.current = nextAppState;
     });
 
     return () => {
-      unsubscribeMessages();
-      unsubscribeTyping();
-      unsubscribeUserStatus();
       subscription.remove();
-      chatService.updateUserStatus(currentUser.uid, 'offline');
+      resetChatRoom();
     };
-  }, [conversationId, currentUser, otherUserId]);
+  }, [currentUser, updateUserStatus, resetChatRoom]);
 
   useEffect(() => {
-    navigation.setOptions({
-      title: otherUserName,
-      headerRight: () => (
-        <View style={styles.headerRight}>
-          <Text style={styles.statusText}>
-            {userStatus.status === 'online'
-              ? 'Online'
-              : formatLastSeen(userStatus.lastSeen)}
-          </Text>
-          <View
-            style={[
-              styles.statusIndicator,
-              {
-                backgroundColor:
-                  userStatus.status === 'online'
-                    ? colors.success
-                    : colors.placeHolder,
-              },
-            ]}
-          />
-        </View>
-      ),
-    });
-  }, [navigation, otherUserName, userStatus]);
+    if (currentUser) {
+      markConversationAsRead(conversationId, currentUser.uid);
+    }
+  }, [conversationId, currentUser, markConversationAsRead]);
 
   const handleSendMessage = async (text: string) => {
-    if (!currentUser) {
-      return;
-    }
+    if (!text.trim() || !currentUser) return;
+
     try {
-      await chatService.sendMessage(conversationId, {
+      await sendMessage(conversationId, {
         senderId: currentUser.uid,
-        receiverId: otherUserId,
-        text,
+        text: text.trim(),
         type: 'text',
-      });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to send message');
-    }
-  };
-
-  const handleAttachmentPress = () => {
-    Alert.alert(
-      'Coming Soon',
-      'File attachment feature will be available soon!',
-    );
-  };
-
-  const handleTyping = async (isTyping: boolean) => {
-    if (!currentUser) {
-      return;
-    }
-    try {
-      await chatService.setTypingStatus(
         conversationId,
-        currentUser.uid,
-        isTyping,
-      );
+      });
+      setMessageText('');
     } catch (error) {
-      console.error('Error setting typing status:', error);
+      // Error is handled by the chat slice
     }
   };
 
-  const handleMessageLongPress = (message: ChatMessage) => {
-    setSelectedMessage(message);
+  const handleTyping = (isTyping: boolean) => {
+    if (!currentUser) return;
+    setTypingStatus(conversationId, currentUser.uid, isTyping);
+  };
+
+  const handleSendButtonPress = () => {
+    if (messageText.trim()) {
+      handleSendMessage(messageText);
+    }
   };
 
   const renderMessage = ({item}: {item: ChatMessage}) => {
-    return (
-      <View>
-        <MessageBubble
-          message={item}
-          isOwnMessage={item.senderId === currentUser?.uid}
-          onLongPress={() => handleMessageLongPress(item)}
-        />
-      </View>
-    );
-  };
-
-  const renderTypingIndicator = () => {
-    if (typingUsers.length === 0) {
-      return null;
-    }
+    const isCurrentUser = item.senderId === currentUser?.uid;
 
     return (
-      <View style={styles.typingContainer}>
-        <View style={styles.typingBubble}>
-          <View style={styles.typingDots}>
-            {[0, 1, 2].map(i => (
-              <View key={i} style={styles.typingDot} />
-            ))}
-          </View>
-          <Text style={styles.typingText}>
-            {typingUsers.length === 1
-              ? `${otherUserName} is typing`
-              : 'Someone is typing'}
+      <View
+        style={[
+          styles.messageContainer,
+          isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
+        ]}>
+        <View
+          style={[
+            styles.messageBubble,
+            isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble,
+          ]}>
+          <Text
+            style={[
+              styles.messageText,
+              isCurrentUser
+                ? styles.currentUserMessageText
+                : styles.otherUserMessageText,
+            ]}>
+            {item.text}
+          </Text>
+          <Text style={styles.messageTime}>
+            {new Date(item.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </Text>
         </View>
       </View>
     );
   };
-
-  const renderEmptyComponent = () => (
-    <View style={styles.emptyContainer}>
-      <Image
-        source={icons.emptyChat}
-        style={styles.emptyIcon}
-        resizeMode="contain"
-      />
-      <Text style={styles.emptyText}>No messages yet</Text>
-      <Text style={styles.emptySubText}>
-        Start the conversation by sending a message
-      </Text>
-    </View>
-  );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <View>
-          <ActivityIndicator size="large" color={colors.primaryColor} />
-        </View>
+        <ActivityIndicator size="large" color={colors.primaryColor} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
@@ -242,33 +167,70 @@ const ChatRoom: React.FC<Props> = ({route, navigation}) => {
         translucent
       />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? hp(8) : 0}>
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
         <FlatList
           ref={flatListRef}
           data={messages}
           renderItem={renderMessage}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.messageList}
-          inverted={false}
-          onContentSizeChange={() => {
-            if (messages.length > 0) {
-              flatListRef.current?.scrollToEnd({animated: false});
-            }
-          }}
-          ListEmptyComponent={renderEmptyComponent}
+          contentContainerStyle={styles.messagesContainer}
           showsVerticalScrollIndicator={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={5}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+          onLayout={() => flatListRef.current?.scrollToEnd()}
         />
-        {renderTypingIndicator()}
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          onAttachmentPress={handleAttachmentPress}
-          onTyping={handleTyping}
-        />
+
+        {typingUsers.length > 0 && (
+          <View style={styles.typingContainer}>
+            <Text style={styles.typingText}>
+              {typingUsers.length === 1
+                ? `${otherUserName} is typing...`
+                : 'Multiple people are typing...'}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            placeholder="Type a message..."
+            placeholderTextColor={colors.placeHolder}
+            multiline
+            maxLength={1000}
+            value={messageText}
+            onChangeText={text => {
+              setMessageText(text);
+              if (text.length > 0) {
+                handleTyping(true);
+              } else {
+                handleTyping(false);
+              }
+            }}
+            onSubmitEditing={e => {
+              handleSendMessage(e.nativeEvent.text);
+            }}
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              !messageText.trim() && styles.sendButtonDisabled,
+            ]}
+            onPress={handleSendButtonPress}
+            disabled={!messageText.trim()}>
+            <Image
+              source={icons.send}
+              style={[
+                styles.sendIcon,
+                !messageText.trim() && styles.sendIconDisabled,
+              ]}
+              tintColor={
+                messageText.trim() ? colors.primaryColor : colors.placeHolder
+              }
+            />
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -279,109 +241,181 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
   },
-  keyboardView: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: wp(6),
+  },
+  errorText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize(16),
+    color: colors.error,
+    textAlign: 'center',
+  },
+  header: {
     backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  messageList: {
-    paddingHorizontal: wp(4),
-    paddingVertical: hp(2),
-    flexGrow: 1,
-    flexDirection: 'column-reverse',
-  },
-  dateSeparator: {
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: hp(2),
-    paddingHorizontal: wp(2),
+    justifyContent: 'space-between',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
   },
-  dateSeparatorLine: {
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
   },
-  dateSeparatorText: {
+  avatarContainer: {
+    position: 'relative',
+    marginRight: wp(3),
+  },
+  avatar: {
+    width: wp(12),
+    height: wp(12),
+    borderRadius: wp(6),
+  },
+  avatarPlaceholder: {
+    backgroundColor: colors.primaryColor,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize(20),
+    color: colors.white,
+  },
+  statusIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: wp(3),
+    height: wp(3),
+    borderRadius: wp(1.5),
+    borderWidth: 1.5,
+    borderColor: colors.white,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize(16),
+    color: colors.black,
+    marginBottom: hp(0.5),
+  },
+  userStatus: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize(14),
+    color: colors.placeHolder,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  messagesContainer: {
+    flexGrow: 1,
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+    flexDirection: 'column-reverse',
+  },
+  messageContainer: {
+    marginBottom: hp(2),
+    maxWidth: '80%',
+  },
+  currentUserMessage: {
+    alignSelf: 'flex-end',
+  },
+  otherUserMessage: {
+    alignSelf: 'flex-start',
+  },
+  messageBubble: {
+    borderRadius: hp(2),
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1.5),
+  },
+  currentUserBubble: {
+    backgroundColor: colors.primaryColor,
+  },
+  otherUserBubble: {
+    backgroundColor: colors.inputBackground,
+  },
+  messageText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize(16),
+    lineHeight: fontSize(22),
+  },
+  currentUserMessageText: {
+    color: colors.white,
+  },
+  otherUserMessageText: {
+    color: colors.black,
+  },
+  messageTime: {
     fontFamily: fonts.regular,
     fontSize: fontSize(12),
     color: colors.placeHolder,
-    marginHorizontal: wp(2),
+    marginTop: hp(0.5),
+    alignSelf: 'flex-end',
   },
   typingContainer: {
     paddingHorizontal: wp(4),
     paddingVertical: hp(1),
   },
-  typingBubble: {
-    backgroundColor: colors.inputBackground,
-    paddingHorizontal: wp(4),
-    paddingVertical: hp(1.5),
-    borderRadius: hp(2),
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  typingDots: {
-    flexDirection: 'row',
-    marginRight: wp(2),
-  },
-  typingDot: {
-    width: wp(1.5),
-    height: wp(1.5),
-    borderRadius: wp(0.75),
-    backgroundColor: colors.primaryColor,
-    marginHorizontal: wp(0.5),
-  },
   typingText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize(13),
-    color: colors.placeHolder,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: wp(4),
-  },
-  statusText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize(12),
-    color: colors.placeHolder,
-    marginRight: wp(2),
-  },
-  statusIndicator: {
-    width: wp(2),
-    height: wp(2),
-    borderRadius: wp(1),
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: hp(10),
-    paddingHorizontal: wp(4),
-  },
-  emptyIcon: {
-    width: wp(40),
-    height: wp(40),
-    marginBottom: hp(2),
-    opacity: 0.5,
-  },
-  emptyText: {
-    fontFamily: fonts.bold,
-    fontSize: fontSize(18),
-    color: colors.black,
-    marginBottom: hp(1),
-    textAlign: 'center',
-  },
-  emptySubText: {
     fontFamily: fonts.regular,
     fontSize: fontSize(14),
     color: colors.placeHolder,
-    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  input: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize(16),
+    color: colors.black,
+    backgroundColor: colors.inputBackground,
+    borderRadius: hp(2),
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1.5),
+    maxHeight: hp(12),
+  },
+  sendButton: {
+    width: wp(12),
+    height: wp(12),
+    borderRadius: wp(6),
+    backgroundColor: colors.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: wp(2),
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+  },
+  sendIcon: {
+    width: wp(5),
+    height: wp(5),
+  },
+  sendIconDisabled: {
+    opacity: 0.5,
   },
 });
 
-export default ChatRoom;
+export default React.memo(ChatRoom);

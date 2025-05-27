@@ -1,7 +1,7 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo} from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {Platform, ActivityIndicator, View} from 'react-native';
+import {Platform, ActivityIndicator, View, StyleSheet} from 'react-native';
 import {RootStackParamList} from './types';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
@@ -11,66 +11,48 @@ import UserDiscoveryScreen from '../screens/UserDiscoveryScreen';
 import {colors} from '../constant/colors';
 import {fonts} from '../constant/fonts';
 import {fontSize, navigationRef} from '../helpers/globalFunction';
-import {getUserSession} from '../services/session';
+import {useSession, useAppDispatch, useAppSelector} from '../hooks/useRedux';
 import auth from '@react-native-firebase/auth';
+import {setUser} from '../store/slices/authSlice';
+import {initializeNavigation} from '../store/slices/navigationSlice';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const AppNavigator = () => {
-  const [initializing, setInitializing] = useState(true);
-  const [initialRoute, setInitialRoute] = useState<'Login' | 'ChatList'>('Login');
+const LoadingScreen = React.memo(() => (
+  <View style={styles.loaderStyle}>
+    <ActivityIndicator size="large" color={colors.primaryColor} />
+  </View>
+));
 
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        // Check AsyncStorage session
-        const {session} = await getUserSession();
-        
-        // Check Firebase auth state
-        const unsubscribe = auth().onAuthStateChanged(user => {
-          if (user && session) {
-            setInitialRoute('ChatList');
-          } else {
-            setInitialRoute('Login');
-          }
-          setInitializing(false);
-        });
+const useScreenOptions = () =>
+  useMemo(
+    () => ({
+      headerStyle: {backgroundColor: colors.white},
+      headerTintColor: colors.black,
+      headerTitleStyle: {
+        fontFamily: fonts.bold,
+        fontSize: fontSize(18),
+      },
+      headerShadowVisible: false,
+      ...(Platform.OS === 'ios' && {headerBackTitle: ''}),
+    }),
+    [],
+  );
 
-        return unsubscribe;
-      } catch (error) {
-        console.error('Session check error:', error);
-        setInitialRoute('Login');
-        setInitializing(false);
-      }
-    };
+const NavigationContainerWrapper = React.memo(
+  ({children}: {children: React.ReactNode}) => (
+    <NavigationContainer ref={navigationRef}>{children}</NavigationContainer>
+  ),
+);
 
-    checkSession();
-  }, []);
+const StackScreens = React.memo(
+  ({initialRoute}: {initialRoute: keyof RootStackParamList}) => {
+    const screenOptions = useScreenOptions();
 
-  if (initializing) {
     return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <ActivityIndicator size="large" color={colors.primaryColor} />
-      </View>
-    );
-  }
-
-  return (
-    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName={initialRoute}
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: colors.white,
-          },
-          headerTintColor: colors.black,
-          headerTitleStyle: {
-            fontFamily: fonts.bold,
-            fontSize: fontSize(18),
-          },
-          headerShadowVisible: false,
-          ...(Platform.OS === 'ios' && {headerBackTitle: ''}), // iOS-specific
-        }}>
+        screenOptions={screenOptions}>
         <Stack.Screen
           name="Login"
           component={LoginScreen}
@@ -84,10 +66,7 @@ const AppNavigator = () => {
         <Stack.Screen
           name="ChatList"
           component={ChatList}
-          options={{
-            title: 'Messages',
-            headerShown: false,
-          }}
+          options={{title: 'Messages', headerShown: false}}
         />
         <Stack.Screen
           name="ChatRoom"
@@ -105,8 +84,78 @@ const AppNavigator = () => {
           }}
         />
       </Stack.Navigator>
-    </NavigationContainer>
+    );
+  },
+);
+
+const useAuthStateChange = () => {
+  const dispatch = useAppDispatch();
+  const {getUserSession} = useSession();
+
+  return useCallback(
+    async (user: any) => {
+      dispatch(setUser(user));
+      if (user) {
+        try {
+          await getUserSession();
+        } catch (error) {
+          console.error('Error getting user session:', error);
+        }
+      }
+      dispatch(initializeNavigation());
+    },
+    [dispatch, getUserSession],
   );
 };
 
-export default AppNavigator;
+const useNavigationState = () => {
+  return useAppSelector(
+    state => ({
+      initialRoute: state.navigation.initialRoute,
+      initializing: state.navigation.initializing,
+    }),
+    (prev, next) =>
+      prev.initialRoute === next.initialRoute &&
+      prev.initializing === next.initializing,
+  );
+};
+
+const AppNavigator = () => {
+  const {initialRoute, initializing} = useNavigationState();
+  const handleAuthStateChange = useAuthStateChange();
+  useEffect(() => {
+    const unsubscribe = auth().onAuthStateChanged(handleAuthStateChange);
+    return () => {
+      unsubscribe();
+    };
+  }, [handleAuthStateChange]);
+
+  const navigationContent = useMemo(() => {
+    if (initializing) {
+      return <LoadingScreen />;
+    }
+
+    return (
+      <NavigationContainerWrapper>
+        <StackScreens initialRoute={initialRoute} />
+      </NavigationContainerWrapper>
+    );
+  }, [initializing, initialRoute]);
+
+  return navigationContent;
+};
+
+const styles = StyleSheet.create({
+  loaderStyle: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
+AppNavigator.displayName = 'AppNavigator';
+LoadingScreen.displayName = 'LoadingScreen';
+StackScreens.displayName = 'StackScreens';
+NavigationContainerWrapper.displayName = 'NavigationContainerWrapper';
+
+export default React.memo(AppNavigator);

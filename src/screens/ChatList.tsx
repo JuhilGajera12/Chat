@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useCallback, useMemo, memo} from 'react';
 import {
   View,
   Text,
@@ -16,118 +16,44 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../navigation/types';
 import {colors} from '../constant/colors';
 import {fonts} from '../constant/fonts';
-import {fontSize, hp, wp} from '../helpers/globalFunction';
-import {chatService} from '../services/chat';
+import {fontSize, hp, navigate, wp} from '../helpers/globalFunction';
 import {Conversation, ChatUser} from '../types/chat';
 import auth from '@react-native-firebase/auth';
 import {icons} from '../constant/icons';
 import {formatConversationTime} from '../utils/dateUtils';
-import {handleLogout} from '../services/session';
+import {useChat, useSession} from '../hooks/useRedux';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChatList'>;
 
-const ChatList: React.FC<Props> = ({navigation}) => {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<{[key: string]: ChatUser}>({});
-  const currentUser = auth().currentUser;
-
-  useEffect(() => {
-    if (!currentUser) {
-      setLoading(false);
-      return;
-    }
-
-    const unsubscribeConversations = chatService.subscribeToConversations(
-      currentUser.uid,
-      async newConversations => {
-        try {
-          setConversations(newConversations);
-
-          const userIds = new Set<string>();
-          newConversations.forEach(conversation => {
-            conversation.participants.forEach(id => {
-              if (id !== currentUser.uid) {
-                userIds.add(id);
-              }
-            });
-          });
-
-          const userPromises = Array.from(userIds).map(async userId => {
-            try {
-              const user = await chatService.getUser(userId);
-              if (user) {
-                setUsers(prev => ({...prev, [userId]: user}));
-              }
-            } catch (error) {
-              console.error('Error fetching user:', userId, error);
-            }
-          });
-
-          await Promise.all(userPromises);
-          setLoading(false);
-        } catch (error) {
-          console.error('Error in conversation subscription callback:', error);
-          setLoading(false);
-        }
-      },
+const ConversationItem = memo(
+  ({
+    conversation,
+    otherUser,
+    currentUserId,
+    onPress,
+  }: {
+    conversation: Conversation;
+    otherUser: ChatUser;
+    currentUserId: string;
+    onPress: (conversation: Conversation) => void;
+  }) => {
+    const lastMessageTime = useMemo(
+      () =>
+        conversation.lastMessage?.timestamp
+          ? formatConversationTime(conversation.lastMessage.timestamp)
+          : '',
+      [conversation.lastMessage?.timestamp],
     );
 
-    return () => {
-      unsubscribeConversations();
-    };
-  }, [currentUser]);
-
-  const getOtherUser = (conversation: Conversation) => {
-    const otherUserId = conversation.participants.find(
-      id => id !== currentUser?.uid,
+    const unreadCount = useMemo(
+      () => conversation.unreadCount[currentUserId] || 0,
+      [conversation.unreadCount, currentUserId],
     );
-    return otherUserId ? users[otherUserId] : null;
-  };
-
-  const handleConversationPress = (conversation: Conversation) => {
-    const otherUser = getOtherUser(conversation);
-    if (!otherUser) {
-      return;
-    }
-
-    navigation.navigate('ChatRoom', {
-      conversationId: conversation.id,
-      otherUserId: otherUser.id,
-      otherUserName: otherUser.displayName,
-    });
-  };
-
-  const handleLogoutPress = async () => {
-    try {
-      const {error} = await handleLogout();
-      if (error) {
-        Alert.alert('Error', error.message);
-      } else {
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'Login'}],
-        });
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to logout');
-    }
-  };
-
-  const renderConversation = ({item}: {item: Conversation}) => {
-    const otherUser = getOtherUser(item);
-    if (!otherUser) {
-      return null;
-    }
-
-    const lastMessageTime = item.lastMessage?.timestamp
-      ? formatConversationTime(item.lastMessage.timestamp)
-      : '';
 
     return (
       <TouchableOpacity
         style={styles.conversationItem}
-        onPress={() => handleConversationPress(item)}
+        onPress={() => onPress(conversation)}
         activeOpacity={0.7}>
         <View style={styles.avatarContainer}>
           {otherUser.photoURL ? (
@@ -158,16 +84,16 @@ const ChatList: React.FC<Props> = ({navigation}) => {
             <Text
               style={[
                 styles.lastMessage,
-                item.unreadCount > 0 && styles.unreadMessage,
+                unreadCount > 0 && styles.unreadMessage,
               ]}
               numberOfLines={1}
               ellipsizeMode="tail">
-              {item.lastMessage?.text || 'No messages yet'}
+              {conversation.lastMessage?.text || 'No messages yet'}
             </Text>
-            {item.unreadCount > 0 && (
+            {unreadCount > 0 && (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadCount}>
-                  {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </Text>
               </View>
             )}
@@ -175,7 +101,116 @@ const ChatList: React.FC<Props> = ({navigation}) => {
         </View>
       </TouchableOpacity>
     );
-  };
+  },
+);
+
+const EmptyState = memo(() => (
+  <View style={styles.emptyContainer}>
+    <Image
+      source={icons.emptyChat}
+      style={styles.emptyIcon}
+      resizeMode="contain"
+    />
+    <Text style={styles.emptyText}>No conversations yet</Text>
+    <Text style={styles.emptySubText}>
+      Start a new chat by tapping the button above
+    </Text>
+    <TouchableOpacity
+      style={styles.startChatButton}
+      onPress={() => navigate('UserDiscovery')}
+      activeOpacity={0.7}>
+      <Text style={styles.startChatButtonText}>Start a Chat</Text>
+    </TouchableOpacity>
+  </View>
+));
+
+const ChatList: React.FC<Props> = () => {
+  const currentUser = auth().currentUser;
+  const {conversations, users, loading, getConversations, getUser} = useChat();
+  const {handleLogout} = useSession();
+
+  const getOtherUser = useCallback(
+    (conversation: Conversation) => {
+      const otherUserId = conversation.participants.find(
+        id => id !== currentUser?.uid,
+      );
+      return otherUserId ? users[otherUserId] : null;
+    },
+    [users, currentUser?.uid],
+  );
+
+  const handleConversationPress = useCallback(
+    (conversation: Conversation) => {
+      const otherUser = getOtherUser(conversation);
+      if (!otherUser) return;
+
+      navigate('ChatRoom', {
+        conversationId: conversation.id,
+        otherUserId: otherUser.id,
+        otherUserName: otherUser.displayName,
+      });
+    },
+    [getOtherUser],
+  );
+
+  const handleLogoutPress = useCallback(async () => {
+    try {
+      await handleLogout();
+    } catch {
+      Alert.alert('Error', 'Failed to logout');
+    }
+  }, [handleLogout]);
+
+  const renderConversation = useCallback(
+    ({item}: {item: Conversation}) => {
+      const otherUser = getOtherUser(item);
+      if (!otherUser) return null;
+
+      return (
+        <ConversationItem
+          conversation={item}
+          otherUser={otherUser}
+          currentUserId={currentUser?.uid || ''}
+          onPress={handleConversationPress}
+        />
+      );
+    },
+    [getOtherUser, currentUser?.uid, handleConversationPress],
+  );
+
+  const keyExtractor = useCallback(
+    (item: Conversation) =>
+      item.id || `conversation-${item.participants.join('-')}`,
+    [],
+  );
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    getConversations(currentUser.uid).catch(error =>
+      console.error('Error loading conversations:', error),
+    );
+  }, [currentUser, getConversations]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const userIds = new Set<string>();
+    conversations.forEach(convo => {
+      convo.participants.forEach(id => {
+        if (id !== currentUser.uid) {
+          userIds.add(id);
+        }
+      });
+    });
+
+    const fetchUsers = async () => {
+      const promises = Array.from(userIds).map(id => getUser(id));
+      await Promise.all(promises);
+    };
+
+    fetchUsers();
+  }, [conversations, currentUser, getUser]);
 
   if (loading) {
     return (
@@ -208,7 +243,7 @@ const ChatList: React.FC<Props> = ({navigation}) => {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.newChatButton}
-              onPress={() => navigation.navigate('UserDiscovery')}
+              onPress={() => navigate('UserDiscovery')}
               activeOpacity={0.7}>
               <Image
                 source={icons.user}
@@ -223,28 +258,15 @@ const ChatList: React.FC<Props> = ({navigation}) => {
       <FlatList
         data={conversations}
         renderItem={renderConversation}
-        keyExtractor={item => item.id}
+        keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Image
-              source={icons.emptyChat}
-              style={styles.emptyIcon}
-              resizeMode="contain"
-            />
-            <Text style={styles.emptyText}>No conversations yet</Text>
-            <Text style={styles.emptySubText}>
-              Start a new chat by tapping the button above
-            </Text>
-            <TouchableOpacity
-              style={styles.startChatButton}
-              onPress={() => navigation.navigate('UserDiscovery')}
-              activeOpacity={0.7}>
-              <Text style={styles.startChatButtonText}>Start a Chat</Text>
-            </TouchableOpacity>
-          </View>
-        }
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
+        ListEmptyComponent={EmptyState}
       />
     </SafeAreaView>
   );
@@ -459,4 +481,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChatList;
+export default memo(ChatList);

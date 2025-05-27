@@ -1,36 +1,33 @@
+export interface ChatUser {
+  id: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  status: 'online' | 'offline';
+  lastSeen?: Date;
+}
+
 export interface ChatMessage {
   id: string;
+  conversationId: string;
   senderId: string;
-  receiverId: string;
   text: string;
-  timestamp: number;
+  timestamp: Date;
   status: 'sent' | 'delivered' | 'read';
   type: 'text' | 'image' | 'file';
-  metadata?: {
-    fileName?: string;
-    fileUrl?: string;
-    fileSize?: number;
-    mimeType?: string;
-  };
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
 }
 
 export interface Conversation {
   id: string;
   participants: string[];
   lastMessage?: ChatMessage;
-  unreadCount: {[userId: string]: number};
-  updatedAt: number;
-  createdAt: number;
-  otherUser?: ChatUser | null;
-}
-
-export interface ChatUser {
-  id: string;
-  displayName: string;
-  email: string;
-  photoURL?: string;
-  status?: 'online' | 'offline';
-  lastSeen?: number;
+  unreadCount: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ChatState {
@@ -40,4 +37,9 @@ export interface ChatState {
   loading: boolean;
   error: string | null;
   typingUsers: {[conversationId: string]: string[]};
+}
+
+export interface TypingStatus {
+  userId: string;
+  timestamp: Date;
 }

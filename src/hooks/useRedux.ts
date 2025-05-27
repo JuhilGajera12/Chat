@@ -1,0 +1,203 @@
+import {TypedUseSelectorHook, useDispatch, useSelector} from 'react-redux';
+import {useMemo} from 'react';
+import type {RootState} from '../store/types';
+import type {AppDispatch} from '../store';
+import {
+  signInWithEmail,
+  signUpWithEmail,
+  signOut,
+  resetPassword,
+  createUserProfile,
+  clearError as clearAuthError,
+} from '../store/slices/authSlice';
+import {
+  saveUserSession,
+  getUserSession,
+  clearUserSession,
+  handleLogout,
+  clearError as clearSessionError,
+} from '../store/slices/sessionSlice';
+import {
+  updateUserStatus,
+  getUser,
+  createConversation,
+  getConversations,
+  sendMessage,
+  getMessages,
+  markConversationAsRead,
+  uploadFile,
+  setTypingStatus,
+  searchUsers,
+  findConversation,
+  setCurrentConversation,
+  addMessage,
+  updateMessageStatus,
+  setTypingUsers,
+  clearMessages,
+  clearError as clearChatError,
+} from '../store/slices/chatSlice';
+import {ChatMessage, Conversation} from '../types/chat';
+
+// Use throughout your app instead of plain `useDispatch` and `useSelector`
+export const useAppDispatch: () => AppDispatch = useDispatch;
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+
+// Auth hooks
+export const useAuth = () => {
+  const dispatch = useAppDispatch();
+  const {user, loading, error} = useAppSelector(
+    (state: RootState) => state.auth,
+    (prev, next) =>
+      prev.user === next.user &&
+      prev.loading === next.loading &&
+      prev.error === next.error,
+  );
+
+  const actions = useMemo(
+    () => ({
+      signInWithEmail: (email: string, password: string) =>
+        dispatch(signInWithEmail({email, password})),
+      signUpWithEmail: (email: string, password: string) =>
+        dispatch(signUpWithEmail({email, password})),
+      signOut: () => dispatch(signOut()),
+      resetPassword: (email: string) => dispatch(resetPassword(email)),
+      createUserProfile: (user: any, name: string) =>
+        dispatch(createUserProfile({user, name})),
+      clearError: () => dispatch(clearAuthError()),
+    }),
+    [dispatch],
+  );
+
+  return useMemo(
+    () => ({
+      user,
+      loading,
+      error,
+      ...actions,
+    }),
+    [user, loading, error, actions],
+  );
+};
+
+// Session hooks
+export const useSession = () => {
+  const dispatch = useAppDispatch();
+  const {session, loading, error} = useAppSelector(
+    (state: RootState) => state.session,
+    (prev, next) =>
+      prev.session === next.session &&
+      prev.loading === next.loading &&
+      prev.error === next.error,
+  );
+
+  const actions = useMemo(
+    () => ({
+      saveUserSession: (user: any) => dispatch(saveUserSession(user)),
+      getUserSession: () => dispatch(getUserSession()),
+      clearUserSession: () => dispatch(clearUserSession()),
+      handleLogout: () => dispatch(handleLogout()),
+      clearError: () => dispatch(clearSessionError()),
+    }),
+    [dispatch],
+  );
+
+  return useMemo(
+    () => ({
+      session,
+      loading,
+      error,
+      ...actions,
+    }),
+    [session, loading, error, actions],
+  );
+};
+
+// Chat hooks
+export const useChat = () => {
+  const dispatch = useAppDispatch();
+  const {
+    conversations,
+    currentConversation,
+    messages,
+    users,
+    typingUsers,
+    loading,
+    error,
+  } = useAppSelector(
+    (state: RootState) => state.chat,
+    (prev, next) =>
+      prev.conversations === next.conversations &&
+      prev.currentConversation === next.currentConversation &&
+      prev.messages === next.messages &&
+      prev.users === next.users &&
+      prev.typingUsers === next.typingUsers &&
+      prev.loading === next.loading &&
+      prev.error === next.error,
+  );
+
+  const actions = useMemo(
+    () => ({
+      updateUserStatus: (userId: string, status: 'online' | 'offline') =>
+        dispatch(updateUserStatus({userId, status})),
+      getUser: (userId: string) => dispatch(getUser(userId)),
+      createConversation: (participants: string[]) =>
+        dispatch(createConversation(participants)),
+      getConversations: (userId: string) => dispatch(getConversations(userId)),
+      sendMessage: (
+        conversationId: string,
+        message: Omit<ChatMessage, 'id' | 'timestamp' | 'status'>,
+      ) => dispatch(sendMessage({conversationId, message})),
+      getMessages: (
+        conversationId: string,
+        limit?: number,
+        lastMessageId?: string,
+      ) => dispatch(getMessages({conversationId, limit, lastMessageId})),
+      markConversationAsRead: (conversationId: string, userId: string) =>
+        dispatch(markConversationAsRead({conversationId, userId})),
+      uploadFile: (conversationId: string, uri: string, fileName: string) =>
+        dispatch(uploadFile({conversationId, uri, fileName})),
+      setTypingStatus: (
+        conversationId: string,
+        userId: string,
+        isTyping: boolean,
+      ) => dispatch(setTypingStatus({conversationId, userId, isTyping})),
+      searchUsers: (query: string) => dispatch(searchUsers(query)),
+      findConversation: (userId1: string, userId2: string) =>
+        dispatch(findConversation({userId1, userId2})),
+      setCurrentConversation: (conversation: Conversation | null) =>
+        dispatch(setCurrentConversation(conversation)),
+      addMessage: (message: ChatMessage) => dispatch(addMessage(message)),
+      updateMessageStatus: (
+        messageId: string,
+        status: 'sent' | 'delivered' | 'read',
+      ) => dispatch(updateMessageStatus({messageId, status})),
+      setTypingUsers: (users: string[]) => dispatch(setTypingUsers(users)),
+      clearMessages: () => dispatch(clearMessages()),
+      clearError: () => dispatch(clearChatError()),
+    }),
+    [dispatch],
+  );
+
+  return useMemo(
+    () => ({
+      conversations,
+      currentConversation,
+      messages,
+      users,
+      typingUsers,
+      loading,
+      error,
+      ...actions,
+    }),
+    [
+      conversations,
+      currentConversation,
+      messages,
+      users,
+      typingUsers,
+      loading,
+      error,
+      actions,
+    ],
+  );
+};

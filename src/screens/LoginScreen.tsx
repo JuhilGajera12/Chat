@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
@@ -14,51 +14,71 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {RootStackParamList} from '../navigation/types';
 import {fonts} from '../constant/fonts';
 import {
   fontSize,
   hp,
   wp,
   commonAction,
-  navigationRef,
+  navigate,
 } from '../helpers/globalFunction';
 import {colors} from '../constant/colors';
 import {icons} from '../constant/icons';
-import {signInWithEmail, resetPassword} from '../services/auth';
-import {saveUserSession} from '../services/session';
+import {useAuth, useSession} from '../hooks';
+import {useLoginForm} from '../hooks/useForm';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+const LoginScreen = () => {
+  const {
+    email,
+    password,
+    showPassword,
+    setEmail,
+    setPassword,
+    togglePasswordVisibility,
+    resetForm,
+  } = useLoginForm();
 
-const LoginScreen = ({navigation}: Props) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const {
+    signInWithEmail,
+    resetPassword,
+    loading: authLoading,
+    error: authError,
+    user,
+  } = useAuth();
+  const {
+    saveUserSession,
+    loading: sessionLoading,
+    error: sessionError,
+  } = useSession();
+
+  const loading = authLoading || sessionLoading;
+
+  useEffect(() => {
+    if (authError) {
+      Alert.alert('Error', authError.message);
+    }
+    if (sessionError) {
+      Alert.alert('Error', sessionError.message);
+    }
+  }, [authError, sessionError]);
+
+  useEffect(() => {
+    if (user) {
+      saveUserSession(user);
+      resetForm();
+      commonAction('ChatList');
+    }
+  }, [user, saveUserSession, resetForm]);
 
   const handleLogin = async () => {
     if (!email || !password) {
       return;
     }
 
-    setLoading(true);
     try {
-      const {user, error} = await signInWithEmail(email, password);
-      if (error) {
-        Alert.alert('Error', error.message);
-      } else if (user) {
-        // Save user session
-        const {error: sessionError} = await saveUserSession(user);
-        if (sessionError) {
-          console.error('Failed to save session:', sessionError);
-        }
-        commonAction('ChatList');
-      }
+      await signInWithEmail(email, password);
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
+      // Error is handled by useEffect
     }
   };
 
@@ -69,18 +89,19 @@ const LoginScreen = ({navigation}: Props) => {
     }
 
     try {
-      const {error} = await resetPassword(email);
-      if (error) {
-        Alert.alert('Error', error.message);
-      } else {
-        Alert.alert(
-          'Success',
-          'Password reset email sent. Please check your inbox.',
-        );
-      }
-    } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      await resetPassword(email);
+      Alert.alert(
+        'Success',
+        'Password reset email sent. Please check your inbox.',
+      );
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to send reset email');
     }
+  };
+
+  const handleSignup = () => {
+    resetForm();
+    navigate('Signup');
   };
 
   return (
@@ -95,8 +116,8 @@ const LoginScreen = ({navigation}: Props) => {
         style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={false}>
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
           <View style={styles.contentContainer}>
             <View style={styles.headerContainer}>
               <Text style={styles.welcomeText}>Welcome Back</Text>
@@ -141,7 +162,7 @@ const LoginScreen = ({navigation}: Props) => {
                     placeholderTextColor={colors.placeHolder}
                   />
                   <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
+                    onPress={togglePasswordVisibility}
                     style={styles.eyeIcon}>
                     <Image
                       source={showPassword ? icons.eyeOpen : icons.eyeClosed}
@@ -172,15 +193,13 @@ const LoginScreen = ({navigation}: Props) => {
                   <Text style={styles.loginButtonText}>Sign In</Text>
                 )}
               </TouchableOpacity>
-            </View>
 
-            <View style={styles.footerContainer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Signup')}
-                style={styles.signupButton}>
-                <Text style={styles.signupText}>Sign Up</Text>
-              </TouchableOpacity>
+              <View style={styles.signupContainer}>
+                <Text style={styles.signupText}>Don't have an account? </Text>
+                <TouchableOpacity onPress={handleSignup}>
+                  <Text style={styles.signupLink}>Sign Up</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -281,40 +300,38 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     backgroundColor: colors.primaryColor,
-    height: hp(6),
     borderRadius: hp(1),
+    height: hp(6),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: hp(6),
+    marginBottom: hp(4),
   },
   loginButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   loginButtonText: {
     fontFamily: fonts.bold,
     fontSize: fontSize(16),
     color: colors.white,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
-  footerContainer: {
+  signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 'auto',
-  },
-  footerText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize(14),
-    color: colors.placeHolder,
-  },
-  signupButton: {
-    marginLeft: wp(1),
   },
   signupText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize(14),
+    color: colors.black,
+    letterSpacing: 0.2,
+  },
+  signupLink: {
     fontFamily: fonts.bold,
     fontSize: fontSize(14),
     color: colors.primaryColor,
+    letterSpacing: 0.2,
   },
 });
 
-export default LoginScreen;
+export default React.memo(LoginScreen);
