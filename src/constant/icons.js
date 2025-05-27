@@ -8,4 +8,5 @@ export const icons = {
   emptyChat: require('../../Assets/images/empty-chat.png'),
   sent: require('../../Assets/images/sent.png'),
   delivered: require('../../Assets/images/delivered.png'),
+  logout: require('../../Assets/images/logout.png'),
 };

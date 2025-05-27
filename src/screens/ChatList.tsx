@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
+  Alert,
 } from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../navigation/types';
@@ -21,6 +22,7 @@ import {Conversation, ChatUser} from '../types/chat';
 import auth from '@react-native-firebase/auth';
 import {icons} from '../constant/icons';
 import {formatConversationTime} from '../utils/dateUtils';
+import {handleLogout} from '../services/session';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChatList'>;
 
@@ -40,7 +42,6 @@ const ChatList: React.FC<Props> = ({navigation}) => {
       currentUser.uid,
       async newConversations => {
         try {
-          console.log('111', newConversations);
           setConversations(newConversations);
 
           const userIds = new Set<string>();
@@ -95,6 +96,22 @@ const ChatList: React.FC<Props> = ({navigation}) => {
       otherUserId: otherUser.id,
       otherUserName: otherUser.displayName,
     });
+  };
+
+  const handleLogoutPress = async () => {
+    try {
+      const {error} = await handleLogout();
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to logout');
+    }
   };
 
   const renderConversation = ({item}: {item: Conversation}) => {
@@ -178,16 +195,28 @@ const ChatList: React.FC<Props> = ({navigation}) => {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.title}>Messages</Text>
-          <TouchableOpacity
-            style={styles.newChatButton}
-            onPress={() => navigation.navigate('UserDiscovery')}
-            activeOpacity={0.7}>
-            <Image
-              source={icons.user}
-              style={styles.newChatIcon}
-              tintColor={colors.white}
-            />
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogoutPress}
+              activeOpacity={0.7}>
+              <Image
+                source={icons.logout}
+                style={styles.logoutIcon}
+                tintColor={colors.primaryColor}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.newChatButton}
+              onPress={() => navigation.navigate('UserDiscovery')}
+              activeOpacity={0.7}>
+              <Image
+                source={icons.user}
+                style={styles.newChatIcon}
+                tintColor={colors.white}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -249,6 +278,25 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: fontSize(24),
     color: colors.black,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(3),
+  },
+  logoutButton: {
+    width: wp(10),
+    height: wp(10),
+    borderRadius: wp(5),
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primaryColor,
+  },
+  logoutIcon: {
+    width: wp(5),
+    height: wp(5),
   },
   newChatButton: {
     backgroundColor: colors.primaryColor,

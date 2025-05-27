@@ -1,6 +1,4 @@
-import firestore, {
-  FirebaseFirestoreTypes,
-} from '@react-native-firebase/firestore';
+import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import {ChatMessage, Conversation, ChatUser} from '../types/chat';
 import moment from 'moment';
@@ -238,6 +236,7 @@ export const chatService = {
       .collection(CONVERSATIONS_COLLECTION)
       .where('participants', 'array-contains', userId)
       .orderBy('updatedAt', 'desc');
+    console.log('🚀 ~ query:', query);
 
     return query.onSnapshot(
       snapshot => {
@@ -250,6 +249,7 @@ export const chatService = {
           snapshot.docs.map(async doc => {
             try {
               const data = doc.data();
+              console.log('🚀 ~ data:', data);
               if (!data || !Array.isArray(data.participants)) {
                 return null;
               }

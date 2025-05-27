@@ -27,6 +27,7 @@ import {
 import {colors} from '../constant/colors';
 import {icons} from '../constant/icons';
 import {signInWithEmail, resetPassword} from '../services/auth';
+import {saveUserSession} from '../services/session';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -47,6 +48,11 @@ const LoginScreen = ({navigation}: Props) => {
       if (error) {
         Alert.alert('Error', error.message);
       } else if (user) {
+        // Save user session
+        const {error: sessionError} = await saveUserSession(user);
+        if (sessionError) {
+          console.error('Failed to save session:', sessionError);
+        }
         commonAction('ChatList');
       }
     } catch (error) {
