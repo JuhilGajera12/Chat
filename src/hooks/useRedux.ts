@@ -35,8 +35,9 @@ import {
   setTypingUsers,
   clearMessages,
   clearError as clearChatError,
+  initializeChat,
 } from '../store/slices/chatSlice';
-import {ChatMessage, Conversation} from '../types/chat';
+import {ChatMessage, Conversation, ChatUser} from '../types/chat';
 
 // Use throughout your app instead of plain `useDispatch` and `useSelector`
 export const useAppDispatch: () => AppDispatch = useDispatch;
@@ -137,6 +138,7 @@ export const useChat = () => {
 
   const actions = useMemo(
     () => ({
+      initializeChat: (userId: string) => dispatch(initializeChat(userId)),
       updateUserStatus: (userId: string, status: 'online' | 'offline') =>
         dispatch(updateUserStatus({userId, status})),
       getUser: (userId: string) => dispatch(getUser(userId)),
@@ -145,7 +147,9 @@ export const useChat = () => {
       getConversations: (userId: string) => dispatch(getConversations(userId)),
       sendMessage: (
         conversationId: string,
-        message: Omit<ChatMessage, 'id' | 'timestamp' | 'status'>,
+        message: Omit<ChatMessage, 'id' | 'timestamp' | 'status'> & {
+          receiverId: string;
+        },
       ) => dispatch(sendMessage({conversationId, message})),
       getMessages: (
         conversationId: string,
@@ -183,7 +187,7 @@ export const useChat = () => {
       conversations,
       currentConversation,
       messages,
-      users,
+      users: users as {[key: string]: ChatUser},
       typingUsers,
       loading,
       error,

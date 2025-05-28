@@ -126,7 +126,7 @@ const EmptyState = memo(() => (
 
 const ChatList: React.FC<Props> = () => {
   const currentUser = auth().currentUser;
-  const {conversations, users, loading, getConversations, getUser} = useChat();
+  const {conversations, users, loading, initializeChat} = useChat();
   const {handleLogout} = useSession();
 
   const getOtherUser = useCallback(
@@ -134,7 +134,8 @@ const ChatList: React.FC<Props> = () => {
       const otherUserId = conversation.participants.find(
         id => id !== currentUser?.uid,
       );
-      return otherUserId ? users[otherUserId] : null;
+      if (!otherUserId) return null;
+      return (users as {[key: string]: ChatUser})[otherUserId] || null;
     },
     [users, currentUser?.uid],
   );
@@ -187,30 +188,10 @@ const ChatList: React.FC<Props> = () => {
   useEffect(() => {
     if (!currentUser) return;
 
-    getConversations(currentUser.uid).catch(error =>
-      console.error('Error loading conversations:', error),
+    initializeChat(currentUser.uid).catch(error =>
+      console.error('Error initializing chat:', error),
     );
-  }, [currentUser, getConversations]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const userIds = new Set<string>();
-    conversations.forEach(convo => {
-      convo.participants.forEach(id => {
-        if (id !== currentUser.uid) {
-          userIds.add(id);
-        }
-      });
-    });
-
-    const fetchUsers = async () => {
-      const promises = Array.from(userIds).map(id => getUser(id));
-      await Promise.all(promises);
-    };
-
-    fetchUsers();
-  }, [conversations, currentUser, getUser]);
+  }, [currentUser, initializeChat]);
 
   if (loading) {
     return (

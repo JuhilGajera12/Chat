@@ -27,7 +27,7 @@ interface ChatState {
   conversations: Conversation[];
   currentConversation: Conversation | null;
   messages: ChatMessage[];
-  users: [];
+  users: {[key: string]: ChatUser};
   typingUsers: string[];
   loading: boolean;
   error: {code: string; message: string} | null;
@@ -37,7 +37,7 @@ const initialState: ChatState = {
   conversations: [],
   currentConversation: null,
   messages: [],
-  users: [],
+  users: {},
   typingUsers: [],
   loading: false,
   error: null,
@@ -335,6 +335,57 @@ export const findConversation = createAsyncThunk(
   },
 );
 
+export const initializeChat = createAsyncThunk(
+  'chat/initializeChat',
+  async (userId: string) => {
+    try {
+      // First get conversations
+      const conversationsSnapshot = await firestore()
+        .collection(CONVERSATIONS_COLLECTION)
+        .where('participants', 'array-contains', userId)
+        .orderBy('updatedAt', 'desc')
+        .get();
+
+      const conversations = conversationsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Conversation[];
+
+      // Get all unique user IDs from conversations
+      const userIds = new Set<string>();
+      conversations.forEach(convo => {
+        convo.participants.forEach(id => {
+          if (id !== userId) {
+            userIds.add(id);
+          }
+        });
+      });
+
+      // Fetch all users in parallel
+      const userPromises = Array.from(userIds).map(async (id) => {
+        const userDoc = await firestore()
+          .collection(USERS_COLLECTION)
+          .doc(id)
+          .get();
+        if (!userDoc.exists) {
+          throw {code: 'not-found', message: `User ${id} not found`};
+        }
+        return {id, ...userDoc.data()} as ChatUser;
+      });
+
+      const users = await Promise.all(userPromises);
+      const usersMap = users.reduce((acc, user) => {
+        acc[user.id] = user;
+        return acc;
+      }, {} as {[key: string]: ChatUser});
+
+      return { conversations, users: usersMap };
+    } catch (error: any) {
+      throw {code: error.code, message: 'Error initializing chat'};
+    }
+  },
+);
+
 const chatSlice = createSlice({
   name: 'chat',
   initialState,
@@ -447,6 +498,20 @@ const chatSlice = createSlice({
         if (action.payload) {
           state.currentConversation = action.payload;
         }
+      })
+      // Initialize Chat
+      .addCase(initializeChat.pending, state => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(initializeChat.fulfilled, (state, action) => {
+        state.loading = false;
+        state.conversations = action.payload.conversations;
+        state.users = action.payload.users;
+      })
+      .addCase(initializeChat.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as {code: string; message: string};
       });
   },
 });
