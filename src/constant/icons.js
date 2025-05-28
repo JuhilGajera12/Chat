@@ -7,4 +7,6 @@ export const icons = {
   send: require('../../Assets/images/send.png'),
   emptyChat: require('../../Assets/images/empty-chat.png'),
   logout: require('../../Assets/images/logout.png'),
+  chat: require('../../Assets/images/chat.png'),
+  collection: require('../../Assets/images/collection.png'),
 };

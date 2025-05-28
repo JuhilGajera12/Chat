@@ -4,6 +4,9 @@ import sessionReducer from './slices/sessionSlice';
 import chatReducer from './slices/chatSlice';
 import navigationReducer from './slices/navigationSlice';
 import uiReducer from './slices/uiSlice';
+import collectionReducer from './slices/collectionSlice';
+import postReducer from './slices/postSlice';
+import taskReducer from './slices/taskSlice';
 import {RootState} from './types';
 
 export const store = configureStore({
@@ -13,6 +16,9 @@ export const store = configureStore({
     chat: chatReducer,
     navigation: navigationReducer,
     ui: uiReducer,
+    collection: collectionReducer,
+    posts: postReducer,
+    tasks: taskReducer,
   },
   middleware: getDefaultMiddleware =>
     getDefaultMiddleware({

@@ -1,32 +1,48 @@
-import {ChatMessage, Conversation, ChatUser} from '../types/chat';
+import {store} from './index';
 import {RootStackParamList} from '../navigation/types';
+import {ChatMessage} from '../types/chat';
 
 export interface AuthState {
-  user: any | null;
+  user: {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    createdAt?: string;
+    lastLoginAt?: string;
+  } | null;
   loading: boolean;
-  error: any | null;
+  error: {code: string; message: string} | null;
 }
 
 export interface SessionState {
-  session: any | null;
+  session: {
+    user: {
+      uid: string;
+      email: string | null;
+      displayName: string | null;
+    };
+    timestamp: string;
+  } | null;
   loading: boolean;
-  error: any | null;
+  error: {code: string; message: string} | null;
 }
 
 export interface ChatState {
-  conversations: Conversation[];
-  currentConversation: Conversation | null;
+  conversations: any[];
+  currentConversation: any | null;
   messages: ChatMessage[];
-  users: {[key: string]: ChatUser};
+  users: {[key: string]: any};
+  searchResults: any[];
   typingUsers: string[];
   loading: boolean;
   error: {code: string; message: string} | null;
-  searchResults: any[];
+  searchUsers: any[];
 }
 
 export interface NavigationState {
   initialRoute: keyof RootStackParamList;
   initializing: boolean;
+  error: {code: string; message: string} | null;
 }
 
 export interface UIState {
@@ -35,7 +51,7 @@ export interface UIState {
     typingUsers: string[];
     userStatus: {
       status: 'online' | 'offline';
-      lastSeen?: Date;
+      lastSeen?: string;
     };
   };
   userDiscovery: {
@@ -43,10 +59,9 @@ export interface UIState {
   };
 }
 
-export interface RootState {
-  auth: AuthState;
-  session: SessionState;
-  chat: ChatState;
-  navigation: NavigationState;
-  ui: UIState;
+export interface CollectionState {
+  activeTab: number;
 }
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;

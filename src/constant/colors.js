@@ -7,4 +7,5 @@ export const colors = {
   border: '#E5E5EA',
   inputBackground: '#F2F2F7',
   success: '#52b963',
+  gray: '#8E8E93',
 };

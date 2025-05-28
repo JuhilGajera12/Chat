@@ -2,12 +2,13 @@ import React, {useCallback, useEffect, useMemo} from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {Platform, ActivityIndicator, View, StyleSheet} from 'react-native';
-import {RootStackParamList} from './types';
+import {RootStackParamList, linking} from './types';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
-import ChatList from '../screens/ChatList';
 import ChatRoom from '../screens/ChatRoom';
 import UserDiscoveryScreen from '../screens/UserDiscoveryScreen';
+import PostDetails from '../screens/PostDetails';
+import TaskDetails from '../screens/TaskDetails';
 import {colors} from '../constant/colors';
 import {fonts} from '../constant/fonts';
 import {fontSize, navigationRef} from '../helpers/globalFunction';
@@ -15,6 +16,7 @@ import {useSession, useAppDispatch, useAppSelector} from '../hooks/useRedux';
 import auth from '@react-native-firebase/auth';
 import {setUser} from '../store/slices/authSlice';
 import {initializeNavigation} from '../store/slices/navigationSlice';
+import BottomTabNavigator from './BottomTabNavigator';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -40,9 +42,13 @@ const useScreenOptions = () =>
   );
 
 const NavigationContainerWrapper = React.memo(
-  ({children}: {children: React.ReactNode}) => (
-    <NavigationContainer ref={navigationRef}>{children}</NavigationContainer>
-  ),
+  ({children}: {children: React.ReactNode}) => {
+    return (
+      <NavigationContainer linking={linking} ref={navigationRef}>
+        {children}
+      </NavigationContainer>
+    );
+  },
 );
 
 const StackScreens = React.memo(
@@ -64,9 +70,9 @@ const StackScreens = React.memo(
           options={{headerShown: false}}
         />
         <Stack.Screen
-          name="ChatList"
-          component={ChatList}
-          options={{title: 'Messages', headerShown: false}}
+          name="MainTabs"
+          component={BottomTabNavigator}
+          options={{headerShown: false}}
         />
         <Stack.Screen
           name="ChatRoom"
@@ -81,6 +87,20 @@ const StackScreens = React.memo(
           options={{
             title: 'Find Users',
             presentation: 'modal',
+          }}
+        />
+        <Stack.Screen
+          name="PostDetails"
+          component={PostDetails}
+          options={{
+            title: 'Post Details',
+          }}
+        />
+        <Stack.Screen
+          name="TaskDetails"
+          component={TaskDetails}
+          options={{
+            title: 'Task Details',
           }}
         />
       </Stack.Navigator>
@@ -111,7 +131,7 @@ const useAuthStateChange = () => {
 const useNavigationState = () => {
   return useAppSelector(
     state => ({
-      initialRoute: state.navigation.initialRoute,
+      initialRoute: (state.navigation.initializing ? 'Login' : state.auth.user ? 'MainTabs' : 'Login') as keyof RootStackParamList,
       initializing: state.navigation.initializing,
     }),
     (prev, next) =>
