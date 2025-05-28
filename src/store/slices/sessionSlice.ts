@@ -12,7 +12,7 @@ export interface UserSession {
     email: string | null;
     displayName: string | null;
   };
-  timestamp: string; // ISO string for serialization
+  timestamp: string;
 }
 
 interface SessionState {
@@ -50,21 +50,24 @@ export const saveUserSession = createAsyncThunk(
   },
 );
 
-export const getUserSession = createAsyncThunk('session/getUserSession', async () => {
-  try {
-    const sessionStr = await AsyncStorage.getItem(SESSION_KEY);
-    if (!sessionStr) {
-      return {session: null, error: null};
+export const getUserSession = createAsyncThunk(
+  'session/getUserSession',
+  async () => {
+    try {
+      const sessionStr = await AsyncStorage.getItem(SESSION_KEY);
+      if (!sessionStr) {
+        return {session: null, error: null};
+      }
+      const session = JSON.parse(sessionStr) as UserSession;
+      return {session, error: null};
+    } catch (error) {
+      throw {
+        code: 'session/get-failed',
+        message: 'Failed to get user session',
+      };
     }
-    const session = JSON.parse(sessionStr) as UserSession;
-    return {session, error: null};
-  } catch (error) {
-    throw {
-      code: 'session/get-failed',
-      message: 'Failed to get user session',
-    };
-  }
-});
+  },
+);
 
 export const clearUserSession = createAsyncThunk(
   'session/clearUserSession',
@@ -81,18 +84,21 @@ export const clearUserSession = createAsyncThunk(
   },
 );
 
-export const handleLogout = createAsyncThunk('session/handleLogout', async () => {
-  try {
-    await auth().signOut();
-    await AsyncStorage.removeItem(SESSION_KEY);
-    return {error: null};
-  } catch (error: any) {
-    throw {
-      code: error.code || 'session/logout-failed',
-      message: 'Failed to logout',
-    };
-  }
-});
+export const handleLogout = createAsyncThunk(
+  'session/handleLogout',
+  async () => {
+    try {
+      await auth().signOut();
+      await AsyncStorage.removeItem(SESSION_KEY);
+      return {error: null};
+    } catch (error: any) {
+      throw {
+        code: error.code || 'session/logout-failed',
+        message: 'Failed to logout',
+      };
+    }
+  },
+);
 
 const sessionSlice = createSlice({
   name: 'session',
@@ -145,10 +151,11 @@ const sessionSlice = createSlice({
   },
 });
 
-// Selectors
 export const selectSession = (state: {session: SessionState}) => ({
   ...state.session.session,
-  timestamp: state.session.session?.timestamp ? deserializeDate(state.session.session.timestamp) : undefined,
+  timestamp: state.session.session?.timestamp
+    ? deserializeDate(state.session.session.timestamp)
+    : undefined,
 });
 
 export const {clearError} = sessionSlice.actions;

@@ -23,7 +23,7 @@ import {ChatMessage} from '../types/chat';
 import {RouteProp} from '@react-navigation/native';
 import {RootStackParamList} from '../navigation/types';
 import {useDispatch} from 'react-redux';
-import {setMessages} from '../store/slices/chatSlice';
+import {setMessages, setTypingUsers} from '../store/slices/chatSlice';
 
 type Props = {
   route: RouteProp<RootStackParamList, 'ChatRoom'>;
@@ -54,6 +54,7 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     getMessages,
     updateMessageStatus,
     subscribeToMessages,
+    subscribeToTypingStatus,
   } = useChat();
 
   const {user: currentUser} = useAuth();
@@ -66,7 +67,10 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     const unsubscribe = subscribeToMessages(
       conversationId,
       (newMessages: ChatMessage[]) => {
-        dispatch(setMessages(newMessages));
+        const sortedMessages = [...newMessages].sort(
+          (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+        );
+        dispatch(setMessages(sortedMessages));
       },
     );
 
@@ -79,8 +83,49 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     if (conversationId && currentUser) {
       loadMessages();
       markConversationAsRead(conversationId, currentUser.uid);
+      
+      messages.forEach(message => {
+        if (message.senderId !== currentUser.uid && message.status !== 'read') {
+          updateMessageStatus(conversationId, message.id, 'read');
+        }
+      });
     }
-  }, [conversationId, currentUser, markConversationAsRead]);
+  }, [conversationId, currentUser, markConversationAsRead, messages, updateMessageStatus]);
+
+  useEffect(() => {
+    if (!conversationId || !currentUser) return;
+
+    const unreadMessages = messages.filter(
+      message => 
+        message.senderId !== currentUser.uid && 
+        message.status !== 'read' &&
+        (new Date().getTime() - message.timestamp.getTime()) < 5 * 60 * 1000
+    );
+
+    if (unreadMessages.length > 0) {
+      markConversationAsRead(conversationId, currentUser.uid);
+      
+      unreadMessages.forEach(message => {
+        updateMessageStatus(conversationId, message.id, 'read');
+      });
+    }
+  }, [conversationId, currentUser, messages, markConversationAsRead, updateMessageStatus]);
+
+  useEffect(() => {
+    if (!conversationId || !currentUser) return;
+
+    const unsubscribeTyping = subscribeToTypingStatus(
+      conversationId,
+      (typingUsers) => {
+        dispatch(setTypingUsers(typingUsers));
+      },
+      currentUser.uid
+    );
+
+    return () => {
+      unsubscribeTyping();
+    };
+  }, [conversationId, currentUser, subscribeToTypingStatus, dispatch]);
 
   const loadMessages = async (lastMessageId?: string) => {
     if (!hasMoreMessages || isLoadingMore) return;

@@ -25,7 +25,7 @@ export interface Conversation {
   id: string;
   participants: string[];
   lastMessage?: ChatMessage;
-  unreadCount: number;
+  unreadCount: {[userId: string]: number};
   createdAt: Date;
   updatedAt: Date;
 }

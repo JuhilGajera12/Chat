@@ -90,7 +90,10 @@ export const createConversation = createAsyncThunk(
           participants,
           createdAt: timestamp,
           updatedAt: timestamp,
-          unreadCount: 0,
+          unreadCount: participants.reduce((acc, userId) => {
+            acc[userId] = 0;
+            return acc;
+          }, {} as {[userId: string]: number}),
         });
 
       const conversation: Conversation = {
@@ -98,7 +101,10 @@ export const createConversation = createAsyncThunk(
         participants,
         createdAt: now,
         updatedAt: now,
-        unreadCount: 0,
+        unreadCount: participants.reduce((acc, userId) => {
+          acc[userId] = 0;
+          return acc;
+        }, {} as {[userId: string]: number}),
       };
 
       return serializeConversation(conversation);
@@ -235,12 +241,14 @@ export const markConversationAsRead = createAsyncThunk(
     userId: string;
   }) => {
     try {
-      await firestore()
+      const conversationRef = firestore()
         .collection(CONVERSATIONS_COLLECTION)
-        .doc(conversationId)
-        .update({
-          [`unreadCount.${userId}`]: 0,
-        });
+        .doc(conversationId);
+
+      await conversationRef.update({
+        [`unreadCount.${userId}`]: 0,
+      });
+
       return {conversationId, userId};
     } catch (error: any) {
       throw {code: error.code, message: 'Error marking conversation as read'};
@@ -470,15 +478,14 @@ const chatSlice = createSlice({
         state.error = action.payload as {code: string; message: string};
       })
       .addCase(sendMessage.fulfilled, (state, action) => {
-        const {message, conversationId} = action.payload;
-        state.messages.unshift(deserializeMessage(message));
+        const {conversationId} = action.payload;
         if (
           state.currentConversation &&
           state.currentConversation.id === conversationId
         ) {
-          state.currentConversation.lastMessage = deserializeMessage(message);
-          state.currentConversation.updatedAt =
-            deserializeMessage(message).timestamp;
+          const message = deserializeMessage(action.payload.message);
+          state.currentConversation.lastMessage = message;
+          state.currentConversation.updatedAt = message.timestamp;
         }
       })
       .addCase(getMessages.pending, state => {
@@ -494,13 +501,16 @@ const chatSlice = createSlice({
         state.error = action.payload as {code: string; message: string};
       })
       .addCase(markConversationAsRead.fulfilled, (state, action) => {
-        const {conversationId} = action.payload;
+        const {conversationId, userId} = action.payload;
         const conversation = state.conversations.find(
           c => c.id === conversationId,
         );
         if (conversation) {
-          conversation.unreadCount = 0;
+          conversation.unreadCount[userId] = 0;
         }
+      })
+      .addCase(markConversationAsRead.rejected, (state, action) => {
+        state.error = action.payload as {code: string; message: string};
       })
       .addCase(searchUsers.pending, state => {
         state.loading = true;
