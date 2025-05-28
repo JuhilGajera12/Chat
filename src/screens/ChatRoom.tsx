@@ -521,7 +521,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: hp(0.5),
-    backgroundColor: 'red',
   },
   statusIcon: {
     width: wp(4),
