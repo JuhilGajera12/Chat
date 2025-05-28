@@ -17,7 +17,6 @@ export const useUI = () => {
   );
 
   const actions = {
-    // Chat room actions
     setSelectedMessage: (message: ChatMessage | null) =>
       dispatch(setSelectedMessage(message)),
     setTypingUsers: (users: string[]) => dispatch(setTypingUsers(users)),
@@ -25,7 +24,6 @@ export const useUI = () => {
       dispatch(setUserStatus(status)),
     resetChatRoom: () => dispatch(resetChatRoom()),
 
-    // User discovery actions
     setSearchQuery: (query: string) => {
       dispatch(setSearchQuery(query));
     },

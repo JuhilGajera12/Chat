@@ -122,7 +122,6 @@ const authSlice = createSlice({
   },
   extraReducers: builder => {
     builder
-      // Sign In
       .addCase(signInWithEmail.pending, state => {
         state.loading = true;
         state.error = null;
@@ -134,7 +133,6 @@ const authSlice = createSlice({
       .addCase(signInWithEmail.rejected, state => {
         state.loading = false;
       })
-      // Sign Up
       .addCase(signUpWithEmail.pending, state => {
         state.loading = true;
         state.error = null;
@@ -146,13 +144,11 @@ const authSlice = createSlice({
       .addCase(signUpWithEmail.rejected, state => {
         state.loading = false;
       })
-      // Sign Out
       .addCase(signOut.fulfilled, state => {
         state.user = null;
         state.error = null;
       })
       .addCase(signOut.rejected, () => {})
-      // Reset Password
       .addCase(resetPassword.pending, state => {
         state.loading = true;
         state.error = null;
@@ -163,7 +159,6 @@ const authSlice = createSlice({
       .addCase(resetPassword.rejected, state => {
         state.loading = false;
       })
-      // Create User Profile
       .addCase(createUserProfile.pending, state => {
         state.loading = true;
         state.error = null;

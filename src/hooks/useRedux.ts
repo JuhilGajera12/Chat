@@ -39,11 +39,9 @@ import {
 } from '../store/slices/chatSlice';
 import {ChatMessage, Conversation, ChatUser} from '../types/chat';
 
-// Use throughout your app instead of plain `useDispatch` and `useSelector`
 export const useAppDispatch: () => AppDispatch = useDispatch;
 export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
 
-// Auth hooks
 export const useAuth = () => {
   const dispatch = useAppDispatch();
   const {user, loading, error} = useAppSelector(
@@ -80,7 +78,6 @@ export const useAuth = () => {
   );
 };
 
-// Session hooks
 export const useSession = () => {
   const dispatch = useAppDispatch();
   const {session, loading, error} = useAppSelector(
@@ -113,7 +110,6 @@ export const useSession = () => {
   );
 };
 
-// Chat hooks
 export const useChat = () => {
   const dispatch = useAppDispatch();
   const {

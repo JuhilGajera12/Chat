@@ -56,12 +56,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setMessage(text);
     onTyping(true);
 
-    // Clear previous timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Set new timeout
     typingTimeoutRef.current = setTimeout(() => {
       onTyping(false);
     }, 1000);

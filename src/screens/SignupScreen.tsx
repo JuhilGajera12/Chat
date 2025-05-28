@@ -69,15 +69,12 @@ const SignupScreen = () => {
     const setupUser = async () => {
       if (user) {
         try {
-          // Update user profile with name in Auth
           await user.updateProfile({
             displayName: name,
           });
 
-          // Create user profile in Firestore
           await createUserProfile(user, name);
 
-          // Reset form and navigate
           resetForm();
           commonAction('ChatList');
         } catch (error: any) {
@@ -96,9 +93,7 @@ const SignupScreen = () => {
 
     try {
       await signUpWithEmail(email, password);
-    } catch (error) {
-      // Error is handled by useEffect
-    }
+    } catch (error) {}
   };
 
   const handleLogin = () => {

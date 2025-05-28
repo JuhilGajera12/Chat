@@ -37,7 +37,6 @@ const initialState: ChatState = {
   searchUsers: [],
 };
 
-// Thunks
 export const updateUserStatus = createAsyncThunk(
   'chat/updateUserStatus',
   async ({userId, status}: {userId: string; status: 'online' | 'offline'}) => {
@@ -333,7 +332,6 @@ export const initializeChat = createAsyncThunk(
   'chat/initializeChat',
   async (userId: string) => {
     try {
-      // First get conversations
       const conversationsSnapshot = await firestore()
         .collection(CONVERSATIONS_COLLECTION)
         .where('participants', 'array-contains', userId)
@@ -345,7 +343,6 @@ export const initializeChat = createAsyncThunk(
         ...doc.data(),
       })) as Conversation[];
 
-      // Get all unique user IDs from conversations
       const userIds = new Set<string>();
       conversations.forEach(convo => {
         convo.participants.forEach(id => {
@@ -355,7 +352,6 @@ export const initializeChat = createAsyncThunk(
         });
       });
 
-      // Fetch all users in parallel
       const userPromises = Array.from(userIds).map(async id => {
         const userDoc = await firestore()
           .collection(USERS_COLLECTION)
@@ -409,7 +405,6 @@ const chatSlice = createSlice({
   },
   extraReducers: builder => {
     builder
-      // Update User Status
       .addCase(updateUserStatus.fulfilled, (state, action) => {
         const {userId, status} = action.payload;
         if (state.users[userId]) {
@@ -418,15 +413,12 @@ const chatSlice = createSlice({
             status === 'offline' ? new Date() : undefined;
         }
       })
-      // Get User
       .addCase(getUser.fulfilled, (state, action) => {
         state.users[action.payload.id] = action.payload;
       })
-      // Create Conversation
       .addCase(createConversation.fulfilled, (state, action) => {
         state.conversations.unshift(action.payload);
       })
-      // Get Conversations
       .addCase(getConversations.pending, state => {
         state.loading = true;
         state.error = null;
@@ -439,7 +431,6 @@ const chatSlice = createSlice({
         state.loading = false;
         state.error = action.payload as {code: string; message: string};
       })
-      // Send Message
       .addCase(sendMessage.fulfilled, (state, action) => {
         const {message, conversationId} = action.payload;
         state.messages.unshift(message);
@@ -451,7 +442,6 @@ const chatSlice = createSlice({
           state.currentConversation.updatedAt = message.timestamp;
         }
       })
-      // Get Messages
       .addCase(getMessages.pending, state => {
         state.loading = true;
         state.error = null;
@@ -464,17 +454,15 @@ const chatSlice = createSlice({
         state.loading = false;
         state.error = action.payload as {code: string; message: string};
       })
-      // Mark Conversation as Read
       .addCase(markConversationAsRead.fulfilled, (state, action) => {
         const {conversationId} = action.payload;
         const conversation = state.conversations.find(
           c => c.id === conversationId,
         );
         if (conversation) {
-          conversation.unreadCount = 0; // Update to match Conversation type
+          conversation.unreadCount = 0;
         }
       })
-      // Search Users
       .addCase(searchUsers.pending, state => {
         state.loading = true;
         state.error = null;
@@ -487,13 +475,11 @@ const chatSlice = createSlice({
         state.loading = false;
         state.error = action.payload as {code: string; message: string};
       })
-      // Find Conversation
       .addCase(findConversation.fulfilled, (state, action) => {
         if (action.payload) {
           state.currentConversation = action.payload;
         }
       })
-      // Initialize Chat
       .addCase(initializeChat.pending, state => {
         state.loading = true;
         state.error = null;

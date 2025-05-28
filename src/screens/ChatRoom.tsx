@@ -54,7 +54,6 @@ const ChatRoom: React.FC<Props> = ({route}) => {
 
   const {user: currentUser} = useAuth();
 
-  // Load initial messages
   useEffect(() => {
     if (conversationId) {
       loadMessages();
@@ -63,7 +62,7 @@ const ChatRoom: React.FC<Props> = ({route}) => {
 
   const loadMessages = async (lastMessageId?: string) => {
     if (!hasMoreMessages || isLoadingMore) return;
-    
+
     setIsLoadingMore(true);
     try {
       const result = await getMessages(conversationId, 20, lastMessageId);
@@ -91,12 +90,10 @@ const ChatRoom: React.FC<Props> = ({route}) => {
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        // App came to foreground
         if (currentUser) {
           updateUserStatus(currentUser.uid, 'online');
         }
       } else if (nextAppState.match(/inactive|background/)) {
-        // App went to background
         if (currentUser) {
           updateUserStatus(currentUser.uid, 'offline');
         }
@@ -128,9 +125,7 @@ const ChatRoom: React.FC<Props> = ({route}) => {
         receiverId: route.params.otherUserId,
       });
       setMessageText('');
-    } catch (error) {
-      // Error is handled by the chat slice
-    }
+    } catch (error) {}
   };
 
   const handleTyping = (isTyping: boolean) => {
@@ -198,7 +193,9 @@ const ChatRoom: React.FC<Props> = ({route}) => {
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error.message || 'An error occurred'}</Text>
+        <Text style={styles.errorText}>
+          {error.message || 'An error occurred'}
+        </Text>
       </View>
     );
   }

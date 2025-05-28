@@ -77,9 +77,7 @@ const LoginScreen = () => {
 
     try {
       await signInWithEmail(email, password);
-    } catch (error) {
-      // Error is handled by useEffect
-    }
+    } catch (error) {}
   };
 
   const handleForgotPassword = async () => {

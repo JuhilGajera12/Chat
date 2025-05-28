@@ -9,5 +9,4 @@ export type RootStackParamList = {
     otherUserName: string;
   };
   UserDiscovery: undefined;
-  // Add other screens as needed
 };

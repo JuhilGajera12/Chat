@@ -49,12 +49,10 @@ const UserDiscoveryScreen = () => {
     try {
       if (!currentUser) throw new Error('User not authenticated');
 
-      // Check if conversation already exists
       const result = await findConversation(currentUser.uid, user.id);
       const existingConversation = result.payload as Conversation | null;
 
       if (existingConversation) {
-        // Navigate to existing conversation
         navigate('ChatRoom', {
           conversationId: existingConversation.id,
           otherUserId: user.id,
@@ -63,16 +61,14 @@ const UserDiscoveryScreen = () => {
         return;
       }
 
-      // Create new conversation
       const newResult = await createConversation([currentUser.uid, user.id]);
       const newConversation = newResult.payload as Conversation;
 
       if (newConversation) {
-        // Navigate to new conversation
         navigate('ChatRoom', {
           conversationId: newConversation.id,
           otherUserId: user.id,
-          otherUserName: user.name,
+          otherUserName: user.displayName,
         });
       }
     } catch (error) {

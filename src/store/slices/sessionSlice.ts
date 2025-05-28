@@ -110,7 +110,6 @@ const sessionSlice = createSlice({
   },
   extraReducers: builder => {
     builder
-      // Save User Session
       .addCase(saveUserSession.pending, state => {
         state.loading = true;
         state.error = null;
@@ -123,7 +122,6 @@ const sessionSlice = createSlice({
         state.loading = false;
         state.error = action.payload as {code: string; message: string};
       })
-      // Get User Session
       .addCase(getUserSession.pending, state => {
         state.loading = true;
         state.error = null;
@@ -136,7 +134,6 @@ const sessionSlice = createSlice({
         state.loading = false;
         state.error = action.payload as {code: string; message: string};
       })
-      // Clear User Session
       .addCase(clearUserSession.fulfilled, state => {
         state.session = null;
         state.error = null;
@@ -144,7 +141,6 @@ const sessionSlice = createSlice({
       .addCase(clearUserSession.rejected, (state, action) => {
         state.error = action.payload as {code: string; message: string};
       })
-      // Handle Logout
       .addCase(handleLogout.fulfilled, state => {
         state.session = null;
         state.error = null;
