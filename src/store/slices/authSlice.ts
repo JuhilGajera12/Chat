@@ -47,6 +47,7 @@ export const signInWithEmail = createAsyncThunk(
       );
       return {user: serializeFirebaseUser(userCredential.user), error: null};
     } catch (error: any) {
+      console.log('🚀 ~ error:', error);
       let errorMessage = 'An error occurred during sign in';
       if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email';

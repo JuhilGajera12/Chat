@@ -167,8 +167,12 @@ export const useChat = () => {
         .doc(conversationId)
         .collection('typing')
         .onSnapshot((snapshot: FirebaseFirestoreTypes.QuerySnapshot) => {
-          const users = snapshot.docs.map((doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => doc.id);
-          const otherTypingUsers = users.filter((id: string) => id !== currentUserId);
+          const users = snapshot.docs.map(
+            (doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => doc.id,
+          );
+          const otherTypingUsers = users.filter(
+            (id: string) => id !== currentUserId,
+          );
           callback(otherTypingUsers);
         });
     },
@@ -202,22 +206,26 @@ export const useChat = () => {
         .collection('conversations')
         .where('participants', 'array-contains', userId)
         .onSnapshot((snapshot: FirebaseFirestoreTypes.QuerySnapshot) => {
-          const conversations = snapshot.docs.map((doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              participants: data.participants,
-              createdAt: firestoreTimestampToDate(data.createdAt),
-              updatedAt: firestoreTimestampToDate(data.updatedAt),
-              unreadCount: data.unreadCount || 0,
-              lastMessage: data.lastMessage
-                ? {
-                    ...data.lastMessage,
-                    timestamp: firestoreTimestampToDate(data.lastMessage.timestamp),
-                  }
-                : undefined,
-            } as Conversation;
-          });
+          const conversations = snapshot.docs.map(
+            (doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                participants: data.participants,
+                createdAt: firestoreTimestampToDate(data.createdAt),
+                updatedAt: firestoreTimestampToDate(data.updatedAt),
+                unreadCount: data.unreadCount || 0,
+                lastMessage: data.lastMessage
+                  ? {
+                      ...data.lastMessage,
+                      timestamp: firestoreTimestampToDate(
+                        data.lastMessage.timestamp,
+                      ),
+                    }
+                  : undefined,
+              } as Conversation;
+            },
+          );
           callback(conversations);
         });
     },

@@ -15,19 +15,25 @@ import {
   Alert,
 } from 'react-native';
 import {fonts} from '../constant/fonts';
-import {
-  fontSize,
-  hp,
-  wp,
-  commonAction,
-  navigate,
-} from '../helpers/globalFunction';
+import {fontSize, hp, wp} from '../helpers/globalFunction';
 import {colors} from '../constant/colors';
 import {icons} from '../constant/icons';
 import {useAuth, useSession} from '../hooks';
 import {useLoginForm} from '../hooks/useForm';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {RootStackParamList} from '../navigation/types';
+import {CommonActions} from '@react-navigation/native';
 
-const LoginScreen = () => {
+type LoginScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  'Login'
+>;
+
+interface LoginScreenProps {
+  navigation: LoginScreenNavigationProp;
+}
+
+const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const {
     email,
     password,
@@ -66,9 +72,14 @@ const LoginScreen = () => {
     if (user) {
       saveUserSession(user);
       resetForm();
-      commonAction('ChatList');
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{name: 'ChatList'}],
+        }),
+      );
     }
-  }, [user, saveUserSession, resetForm]);
+  }, [user, saveUserSession, resetForm, navigation]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -99,7 +110,7 @@ const LoginScreen = () => {
 
   const handleSignup = () => {
     resetForm();
-    navigate('Signup');
+    navigation.navigate('Signup');
   };
 
   return (

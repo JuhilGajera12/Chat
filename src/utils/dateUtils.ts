@@ -6,17 +6,19 @@ const getDate = (
   if (timestamp instanceof Date) {
     return timestamp;
   }
-  if (timestamp && typeof (timestamp as FirebaseFirestoreTypes.Timestamp).toDate === 'function') {
+  if (
+    timestamp &&
+    typeof (timestamp as FirebaseFirestoreTypes.Timestamp).toDate === 'function'
+  ) {
     return (timestamp as FirebaseFirestoreTypes.Timestamp).toDate();
   }
   if (typeof timestamp === 'number') {
     return new Date(timestamp);
   }
-  // If it's a string or any other type, try to create a Date
   try {
     return new Date(timestamp as any);
   } catch {
-    return new Date(); // Fallback to current date if conversion fails
+    return new Date();
   }
 };
 
@@ -33,16 +35,22 @@ const isSameYear = (date1: Date, date2: Date): boolean => {
 };
 
 const formatTime = (date: Date): string => {
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 };
 
 const formatDate = (date: Date, includeTime: boolean = false): string => {
-  const month = date.toLocaleString('default', { month: 'short' });
+  const month = date.toLocaleString('default', {month: 'short'});
   const day = date.getDate();
   const year = date.getFullYear();
   const time = includeTime ? ` ${formatTime(date)}` : '';
-  
-  return `${month} ${day}${year !== new Date().getFullYear() ? `, ${year}` : ''}${time}`;
+
+  return `${month} ${day}${
+    year !== new Date().getFullYear() ? `, ${year}` : ''
+  }${time}`;
 };
 
 export const formatMessageTime = (
