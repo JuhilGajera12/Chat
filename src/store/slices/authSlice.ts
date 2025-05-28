@@ -2,11 +2,21 @@ import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import {ChatUser} from '../../types/chat';
+import {
+  serializeUser,
+  dateToFirestoreTimestamp,
+} from '../../utils/serialization';
 
 interface AuthState {
-  user: any | null;
+  user: {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    createdAt?: string;
+    lastLoginAt?: string;
+  } | null;
   loading: boolean;
-  error: null;
+  error: {code: string; message: string} | null;
 }
 
 const initialState: AuthState = {
@@ -14,6 +24,18 @@ const initialState: AuthState = {
   loading: false,
   error: null,
 };
+
+const serializeFirebaseUser = (user: any) => ({
+  uid: user.uid,
+  email: user.email,
+  displayName: user.displayName,
+  createdAt: user.metadata?.creationTime
+    ? new Date(user.metadata.creationTime).toISOString()
+    : undefined,
+  lastLoginAt: user.metadata?.lastSignInTime
+    ? new Date(user.metadata.lastSignInTime).toISOString()
+    : undefined,
+});
 
 export const signInWithEmail = createAsyncThunk(
   'auth/signInWithEmail',
@@ -23,7 +45,7 @@ export const signInWithEmail = createAsyncThunk(
         email,
         password,
       );
-      return {user: userCredential.user, error: null};
+      return {user: serializeFirebaseUser(userCredential.user), error: null};
     } catch (error: any) {
       let errorMessage = 'An error occurred during sign in';
       if (error.code === 'auth/user-not-found') {
@@ -46,7 +68,7 @@ export const signUpWithEmail = createAsyncThunk(
         email,
         password,
       );
-      return {user: userCredential.user, error: null};
+      return {user: serializeFirebaseUser(userCredential.user), error: null};
     } catch (error: any) {
       let errorMessage = 'An error occurred during sign up';
       if (error.code === 'auth/email-already-in-use') {
@@ -90,15 +112,23 @@ export const createUserProfile = createAsyncThunk(
   'auth/createUserProfile',
   async ({user, name}: {user: any; name: string}) => {
     try {
+      const now = new Date();
       const userProfile: ChatUser = {
         id: user.uid,
         displayName: name,
         email: user.email,
         status: 'offline',
-        lastSeen: Date.now(),
+        lastSeen: now,
       };
 
-      await firestore().collection('users').doc(user.uid).set(userProfile);
+      const serializedProfile = serializeUser(userProfile);
+      await firestore()
+        .collection('users')
+        .doc(user.uid)
+        .set({
+          ...serializedProfile,
+          lastSeen: dateToFirestoreTimestamp(now),
+        });
       return {error: null};
     } catch (error: any) {
       throw {
@@ -117,7 +147,9 @@ const authSlice = createSlice({
       state.error = null;
     },
     setUser: (state, action) => {
-      state.user = action.payload;
+      state.user = action.payload
+        ? serializeFirebaseUser(action.payload)
+        : null;
     },
   },
   extraReducers: builder => {
@@ -130,8 +162,9 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload.user;
       })
-      .addCase(signInWithEmail.rejected, state => {
+      .addCase(signInWithEmail.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload as {code: string; message: string};
       })
       .addCase(signUpWithEmail.pending, state => {
         state.loading = true;
@@ -141,14 +174,17 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload.user;
       })
-      .addCase(signUpWithEmail.rejected, state => {
+      .addCase(signUpWithEmail.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload as {code: string; message: string};
       })
       .addCase(signOut.fulfilled, state => {
         state.user = null;
         state.error = null;
       })
-      .addCase(signOut.rejected, () => {})
+      .addCase(signOut.rejected, (state, action) => {
+        state.error = action.payload as {code: string; message: string};
+      })
       .addCase(resetPassword.pending, state => {
         state.loading = true;
         state.error = null;
@@ -166,8 +202,9 @@ const authSlice = createSlice({
       .addCase(createUserProfile.fulfilled, state => {
         state.loading = false;
       })
-      .addCase(createUserProfile.rejected, state => {
+      .addCase(createUserProfile.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload as {code: string; message: string};
       });
   },
 });

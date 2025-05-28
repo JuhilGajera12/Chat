@@ -9,7 +9,12 @@ export const store = configureStore({
     auth: authReducer,
     ui: uiReducer,
   },
+  middleware: getDefaultMiddleware =>
+    getDefaultMiddleware({
+      serializableCheck: true,
+      immutableCheck: true,
+    }),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
-export type AppDispatch = typeof store.dispatch; 
+export type AppDispatch = typeof store.dispatch;

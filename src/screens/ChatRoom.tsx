@@ -50,15 +50,17 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     loading,
     error,
     getMessages,
+    updateMessageStatus,
   } = useChat();
 
   const {user: currentUser} = useAuth();
 
   useEffect(() => {
-    if (conversationId) {
+    if (conversationId && currentUser) {
       loadMessages();
+      markConversationAsRead(conversationId, currentUser.uid);
     }
-  }, [conversationId]);
+  }, [conversationId, currentUser, markConversationAsRead]);
 
   const loadMessages = async (lastMessageId?: string) => {
     if (!hasMoreMessages || isLoadingMore) return;
@@ -107,25 +109,36 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     };
   }, [currentUser, updateUserStatus, resetChatRoom]);
 
-  useEffect(() => {
-    if (currentUser) {
-      markConversationAsRead(conversationId, currentUser.uid);
-    }
-  }, [conversationId, currentUser, markConversationAsRead]);
-
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || !currentUser) return;
 
     try {
-      await sendMessage(conversationId, {
+      const messagePayload: Omit<ChatMessage, 'id' | 'timestamp' | 'status'> & {
+        receiverId: string;
+      } = {
         senderId: currentUser.uid,
         text: text.trim(),
         type: 'text',
         conversationId,
         receiverId: route.params.otherUserId,
-      });
+      };
+
+      const result = await sendMessage(conversationId, messagePayload);
+      if (
+        result.meta.requestStatus === 'fulfilled' &&
+        result.payload &&
+        result.payload.message
+      ) {
+        updateMessageStatus({
+          conversationId: conversationId,
+          messageId: result.payload.message.id,
+          status: 'delivered',
+        });
+      }
       setMessageText('');
-    } catch (error) {}
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
   };
 
   const handleTyping = (isTyping: boolean) => {
@@ -141,6 +154,39 @@ const ChatRoom: React.FC<Props> = ({route}) => {
 
   const renderMessage = ({item}: {item: ChatMessage}) => {
     const isCurrentUser = item.senderId === currentUser?.uid;
+
+    const renderStatusIcons = () => {
+      if (!isCurrentUser) return null;
+
+      switch (item.status) {
+        case 'sent':
+          return (
+            <Image
+              source={icons.sent}
+              style={styles.statusIcon}
+              tintColor={colors.placeHolder}
+            />
+          );
+        case 'delivered':
+          return (
+            <Image
+              source={icons.delivered}
+              style={styles.statusIcon}
+              tintColor={colors.placeHolder}
+            />
+          );
+        case 'read':
+          return (
+            <Image
+              source={icons.delivered}
+              style={styles.statusIcon}
+              tintColor={colors.primaryColor}
+            />
+          );
+        default:
+          return null;
+      }
+    };
 
     return (
       <View
@@ -162,12 +208,15 @@ const ChatRoom: React.FC<Props> = ({route}) => {
             ]}>
             {item.text}
           </Text>
-          <Text style={styles.messageTime}>
-            {new Date(item.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+          <View style={styles.messageFooter}>
+            <Text style={styles.messageTime}>
+              {new Date(item.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+            {renderStatusIcons()}
+          </View>
         </View>
       </View>
     );
@@ -466,6 +515,24 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: wp(4),
     paddingBottom: hp(2),
+  },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: hp(0.5),
+    backgroundColor: 'red',
+  },
+  statusIcon: {
+    width: wp(4),
+    height: wp(4),
+    marginLeft: wp(1),
+  },
+  doubleTickContainer: {
+    flexDirection: 'row',
+  },
+  secondTick: {
+    marginLeft: -wp(2.5),
   },
 });
 

@@ -9,6 +9,7 @@ import {
   updateUserStatus,
   markConversationAsRead,
   selectChat,
+  updateMessageStatus,
 } from '../store/slices/chatSlice';
 import {AppDispatch} from '../store/store';
 import firestore from '@react-native-firebase/firestore';
@@ -43,7 +44,7 @@ export const useChat = () => {
   const sendMessageAction = useCallback(
     (
       conversationId: string,
-      message: Omit<ChatMessage, 'id' | 'timestamp' | 'status'>,
+      message: Omit<ChatMessage, 'id' | 'timestamp' | 'status'> & { receiverId: string },
     ) => {
       return dispatch(sendMessage({conversationId, message}));
     },
@@ -67,6 +68,17 @@ export const useChat = () => {
   const markConversationAsReadAction = useCallback(
     (conversationId: string, userId: string) => {
       return dispatch(markConversationAsRead({conversationId, userId}));
+    },
+    [dispatch],
+  );
+
+  const updateMessageStatusAction = useCallback(
+    ({conversationId, messageId, status}: {
+      conversationId: string;
+      messageId: string;
+      status: 'delivered' | 'read';
+    }) => {
+      return dispatch(updateMessageStatus({conversationId, messageId, status}));
     },
     [dispatch],
   );
@@ -172,6 +184,7 @@ export const useChat = () => {
     setTypingStatus: setTypingStatusAction,
     updateUserStatus: updateUserStatusAction,
     markConversationAsRead: markConversationAsReadAction,
+    updateMessageStatus: updateMessageStatusAction,
     subscribeToMessages,
     subscribeToTypingStatus,
     subscribeToUserStatus,

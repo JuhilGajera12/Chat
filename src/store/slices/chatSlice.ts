@@ -4,6 +4,15 @@ import storage from '@react-native-firebase/storage';
 import {ChatMessage, Conversation, ChatUser} from '../../types/chat';
 import moment from 'moment';
 import {RootState} from '../types';
+import {
+  serializeMessage,
+  deserializeMessage,
+  serializeConversation,
+  deserializeConversation,
+  deserializeUser,
+  dateToFirestoreTimestamp,
+  firestoreTimestampToDate,
+} from '../../utils/serialization';
 
 const MESSAGES_COLLECTION = 'messages';
 const CONVERSATIONS_COLLECTION = 'conversations';
@@ -42,11 +51,13 @@ export const updateUserStatus = createAsyncThunk(
   async ({userId, status}: {userId: string; status: 'online' | 'offline'}) => {
     try {
       const userRef = firestore().collection(USERS_COLLECTION).doc(userId);
+      const timestamp =
+        status === 'offline' ? dateToFirestoreTimestamp(new Date()) : null;
       await userRef.update({
         status,
-        lastSeen: status === 'offline' ? toTimestampNumber(moment()) : null,
+        lastSeen: timestamp,
       });
-      return {userId, status};
+      return {userId, status, lastSeen: timestamp};
     } catch (error: any) {
       throw {code: error.code, message: 'Error updating user status'};
     }
@@ -75,8 +86,8 @@ export const createConversation = createAsyncThunk(
   'chat/createConversation',
   async (participants: string[]) => {
     try {
-      const now = moment();
-      const timestamp = toTimestampNumber(now);
+      const now = new Date();
+      const timestamp = dateToFirestoreTimestamp(now);
       const conversationRef = await firestore()
         .collection(CONVERSATIONS_COLLECTION)
         .add({
@@ -85,14 +96,16 @@ export const createConversation = createAsyncThunk(
           updatedAt: timestamp,
           unreadCount: 0,
         });
-      return {
+
+      const conversation: Conversation = {
         id: conversationRef.id,
         participants,
-        createdAt: new Date(timestamp),
-        updatedAt: new Date(timestamp),
+        createdAt: now,
+        updatedAt: now,
         unreadCount: 0,
-        lastMessage: undefined,
-      } as Conversation;
+      };
+
+      return serializeConversation(conversation);
     } catch (error: any) {
       throw {code: error.code, message: 'Error creating conversation'};
     }
@@ -136,24 +149,26 @@ export const sendMessage = createAsyncThunk(
         .collection(CONVERSATIONS_COLLECTION)
         .doc(conversationId);
       const messageRef = conversationRef.collection(MESSAGES_COLLECTION).doc();
-      const now = moment();
-      const timestamp = toTimestampNumber(now);
+      const now = new Date();
+      const timestamp = dateToFirestoreTimestamp(now);
 
       const messageData: ChatMessage = {
         ...message,
         id: messageRef.id,
-        timestamp: new Date(timestamp),
+        timestamp: now,
         status: 'sent' as const,
       };
 
+      const serializedMessage = serializeMessage(messageData);
+
       batch.set(messageRef, {
-        ...messageData,
+        ...serializedMessage,
         timestamp,
       });
 
       batch.update(conversationRef, {
         lastMessage: {
-          ...messageData,
+          ...serializedMessage,
           timestamp,
         },
         updatedAt: timestamp,
@@ -162,7 +177,7 @@ export const sendMessage = createAsyncThunk(
       });
 
       await batch.commit();
-      return {message: messageData, conversationId};
+      return {message: serializedMessage, conversationId};
     } catch (error: any) {
       throw {code: error.code, message: 'Error sending message'};
     }
@@ -199,10 +214,15 @@ export const getMessages = createAsyncThunk(
       }
 
       const snapshot = await query.get();
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as ChatMessage[];
+      const messages = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return serializeMessage({
+          id: doc.id,
+          ...data,
+          timestamp: firestoreTimestampToDate(data.timestamp),
+        } as ChatMessage);
+      });
+      return messages;
     } catch (error: any) {
       throw {code: error.code, message: 'Error getting messages'};
     }
@@ -376,6 +396,31 @@ export const initializeChat = createAsyncThunk(
   },
 );
 
+export const updateMessageStatus = createAsyncThunk(
+  'chat/updateMessageStatus',
+  async ({
+    conversationId,
+    messageId,
+    status,
+  }: {
+    conversationId: string;
+    messageId: string;
+    status: 'delivered' | 'read';
+  }) => {
+    try {
+      const messageRef = firestore()
+        .collection(CONVERSATIONS_COLLECTION)
+        .doc(conversationId)
+        .collection(MESSAGES_COLLECTION)
+        .doc(messageId);
+      await messageRef.update({status});
+      return {conversationId, messageId, status};
+    } catch (error: any) {
+      throw {code: error.code, message: 'Error updating message status'};
+    }
+  },
+);
+
 const chatSlice = createSlice({
   name: 'chat',
   initialState,
@@ -389,13 +434,6 @@ const chatSlice = createSlice({
     addMessage: (state, action) => {
       state.messages.unshift(action.payload);
     },
-    updateMessageStatus: (state, action) => {
-      const {messageId, status} = action.payload;
-      const message = state.messages.find(m => m.id === messageId);
-      if (message) {
-        message.status = status;
-      }
-    },
     setTypingUsers: (state, action) => {
       state.typingUsers = action.payload;
     },
@@ -406,18 +444,19 @@ const chatSlice = createSlice({
   extraReducers: builder => {
     builder
       .addCase(updateUserStatus.fulfilled, (state, action) => {
-        const {userId, status} = action.payload;
+        const {userId, status, lastSeen} = action.payload;
         if (state.users[userId]) {
           state.users[userId].status = status;
-          state.users[userId].lastSeen =
-            status === 'offline' ? new Date() : undefined;
+          state.users[userId].lastSeen = lastSeen
+            ? new Date(lastSeen)
+            : undefined;
         }
       })
       .addCase(getUser.fulfilled, (state, action) => {
-        state.users[action.payload.id] = action.payload;
+        state.users[action.payload.id] = deserializeUser(action.payload);
       })
       .addCase(createConversation.fulfilled, (state, action) => {
-        state.conversations.unshift(action.payload);
+        state.conversations.unshift(deserializeConversation(action.payload));
       })
       .addCase(getConversations.pending, state => {
         state.loading = true;
@@ -425,7 +464,7 @@ const chatSlice = createSlice({
       })
       .addCase(getConversations.fulfilled, (state, action) => {
         state.loading = false;
-        state.conversations = action.payload;
+        state.conversations = action.payload.map(deserializeConversation);
       })
       .addCase(getConversations.rejected, (state, action) => {
         state.loading = false;
@@ -433,13 +472,14 @@ const chatSlice = createSlice({
       })
       .addCase(sendMessage.fulfilled, (state, action) => {
         const {message, conversationId} = action.payload;
-        state.messages.unshift(message);
+        state.messages.unshift(deserializeMessage(message));
         if (
           state.currentConversation &&
           state.currentConversation.id === conversationId
         ) {
-          state.currentConversation.lastMessage = message;
-          state.currentConversation.updatedAt = message.timestamp;
+          state.currentConversation.lastMessage = deserializeMessage(message);
+          state.currentConversation.updatedAt =
+            deserializeMessage(message).timestamp;
         }
       })
       .addCase(getMessages.pending, state => {
@@ -448,7 +488,7 @@ const chatSlice = createSlice({
       })
       .addCase(getMessages.fulfilled, (state, action) => {
         state.loading = false;
-        state.messages = action.payload;
+        state.messages = action.payload.map(deserializeMessage);
       })
       .addCase(getMessages.rejected, (state, action) => {
         state.loading = false;
@@ -492,6 +532,13 @@ const chatSlice = createSlice({
       .addCase(initializeChat.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as {code: string; message: string};
+      })
+      .addCase(updateMessageStatus.fulfilled, (state, action) => {
+        const {messageId, status} = action.payload;
+        const message = state.messages.find(m => m.id === messageId);
+        if (message) {
+          message.status = status;
+        }
       });
   },
 });
@@ -500,7 +547,6 @@ export const {
   clearError,
   setCurrentConversation,
   addMessage,
-  updateMessageStatus,
   setTypingUsers,
   clearMessages,
 } = chatSlice.actions;

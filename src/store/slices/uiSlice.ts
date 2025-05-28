@@ -1,12 +1,13 @@
 import {createSlice, PayloadAction} from '@reduxjs/toolkit';
 import {ChatMessage} from '../../types/chat';
+import {serializeMessage, deserializeMessage, serializeDate, deserializeDate} from '../../utils/serialization';
 
 interface ChatRoomState {
   selectedMessage: ChatMessage | null;
   typingUsers: string[];
   userStatus: {
     status: 'online' | 'offline';
-    lastSeen?: Date;
+    lastSeen?: string; // ISO string for serialization
   };
 }
 
@@ -37,7 +38,7 @@ const uiSlice = createSlice({
   initialState,
   reducers: {
     setSelectedMessage: (state, action: PayloadAction<ChatMessage | null>) => {
-      state.chatRoom.selectedMessage = action.payload;
+      state.chatRoom.selectedMessage = action.payload ? serializeMessage(action.payload) : null;
     },
     setTypingUsers: (state, action: PayloadAction<string[]>) => {
       state.chatRoom.typingUsers = action.payload;
@@ -49,7 +50,11 @@ const uiSlice = createSlice({
         lastSeen?: Date;
       }>,
     ) => {
-      state.chatRoom.userStatus = action.payload;
+      const lastSeen = action.payload.lastSeen ? serializeDate(action.payload.lastSeen) : undefined;
+      state.chatRoom.userStatus = {
+        status: action.payload.status,
+        lastSeen: lastSeen || undefined, // Ensure it's either string or undefined, never null
+      };
     },
     setSearchQuery: (state, action: PayloadAction<string>) => {
       state.userDiscovery.searchQuery = action.payload;
@@ -61,6 +66,15 @@ const uiSlice = createSlice({
       state.userDiscovery = initialState.userDiscovery;
     },
   },
+});
+
+// Selectors
+export const selectSelectedMessage = (state: {ui: UIState}) => 
+  state.ui.chatRoom.selectedMessage ? deserializeMessage(state.ui.chatRoom.selectedMessage) : null;
+
+export const selectUserStatus = (state: {ui: UIState}) => ({
+  ...state.ui.chatRoom.userStatus,
+  lastSeen: state.ui.chatRoom.userStatus.lastSeen ? deserializeDate(state.ui.chatRoom.userStatus.lastSeen) : undefined,
 });
 
 export const {
