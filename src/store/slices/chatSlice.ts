@@ -2,7 +2,6 @@ import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import {ChatMessage, Conversation, ChatUser} from '../../types/chat';
-import moment from 'moment';
 import {RootState} from '../types';
 import {
   serializeMessage,
@@ -13,14 +12,11 @@ import {
   dateToFirestoreTimestamp,
   firestoreTimestampToDate,
 } from '../../utils/serialization';
+import {PayloadAction} from '@reduxjs/toolkit';
 
 const MESSAGES_COLLECTION = 'messages';
 const CONVERSATIONS_COLLECTION = 'conversations';
 const USERS_COLLECTION = 'users';
-
-const toTimestampNumber = (momentObj: moment.Moment): number => {
-  return momentObj.valueOf();
-};
 
 export interface ChatState {
   conversations: Conversation[];
@@ -295,7 +291,7 @@ export const setTypingStatus = createAsyncThunk(
       if (isTyping) {
         await typingRef.set({
           userId,
-          timestamp: toTimestampNumber(moment()),
+          timestamp: Date.now(),
         });
       } else {
         await typingRef.delete();
@@ -434,6 +430,9 @@ const chatSlice = createSlice({
     addMessage: (state, action) => {
       state.messages.unshift(action.payload);
     },
+    setMessages: (state, action: PayloadAction<ChatMessage[]>) => {
+      state.messages = action.payload;
+    },
     setTypingUsers: (state, action) => {
       state.typingUsers = action.payload;
     },
@@ -547,6 +546,7 @@ export const {
   clearError,
   setCurrentConversation,
   addMessage,
+  setMessages,
   setTypingUsers,
   clearMessages,
 } = chatSlice.actions;

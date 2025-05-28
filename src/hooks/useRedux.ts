@@ -1,5 +1,5 @@
 import {TypedUseSelectorHook, useDispatch, useSelector} from 'react-redux';
-import {useMemo} from 'react';
+import {useMemo, useCallback} from 'react';
 import type {RootState} from '../store/types';
 import type {AppDispatch} from '../store';
 import {
@@ -38,6 +38,9 @@ import {
   initializeChat,
 } from '../store/slices/chatSlice';
 import {ChatMessage, Conversation, ChatUser} from '../types/chat';
+import firestore from '@react-native-firebase/firestore';
+import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
+import {firestoreTimestampToDate} from '../utils/serialization';
 
 export const useAppDispatch: () => AppDispatch = useDispatch;
 export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
@@ -134,6 +137,93 @@ export const useChat = () => {
       prev.error === next.error,
   );
 
+  const subscribeToMessages = useCallback(
+    (conversationId: string, callback: (messages: ChatMessage[]) => void) => {
+      return firestore()
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .orderBy('timestamp', 'desc')
+        .onSnapshot((snapshot: FirebaseFirestoreTypes.QuerySnapshot) => {
+          const messages = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: firestoreTimestampToDate(doc.data().timestamp),
+          })) as ChatMessage[];
+          callback(messages);
+        });
+    },
+    [],
+  );
+
+  const subscribeToTypingStatus = useCallback(
+    (
+      conversationId: string,
+      callback: (typingUsers: string[]) => void,
+      currentUserId: string,
+    ) => {
+      return firestore()
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('typing')
+        .onSnapshot((snapshot: FirebaseFirestoreTypes.QuerySnapshot) => {
+          const users = snapshot.docs.map((doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => doc.id);
+          const otherTypingUsers = users.filter((id: string) => id !== currentUserId);
+          callback(otherTypingUsers);
+        });
+    },
+    [],
+  );
+
+  const subscribeToUserStatus = useCallback(
+    (
+      userId: string,
+      callback: (status: 'online' | 'offline', lastSeen?: Date) => void,
+    ) => {
+      return firestore()
+        .collection('users')
+        .doc(userId)
+        .onSnapshot((doc: FirebaseFirestoreTypes.DocumentSnapshot) => {
+          const data = doc.data();
+          if (data) {
+            callback(
+              data.status || 'offline',
+              data.lastSeen?.toDate() || undefined,
+            );
+          }
+        });
+    },
+    [],
+  );
+
+  const subscribeToConversations = useCallback(
+    (userId: string, callback: (conversations: Conversation[]) => void) => {
+      return firestore()
+        .collection('conversations')
+        .where('participants', 'array-contains', userId)
+        .onSnapshot((snapshot: FirebaseFirestoreTypes.QuerySnapshot) => {
+          const conversations = snapshot.docs.map((doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              participants: data.participants,
+              createdAt: firestoreTimestampToDate(data.createdAt),
+              updatedAt: firestoreTimestampToDate(data.updatedAt),
+              unreadCount: data.unreadCount || 0,
+              lastMessage: data.lastMessage
+                ? {
+                    ...data.lastMessage,
+                    timestamp: firestoreTimestampToDate(data.lastMessage.timestamp),
+                  }
+                : undefined,
+            } as Conversation;
+          });
+          callback(conversations);
+        });
+    },
+    [],
+  );
+
   const actions = useMemo(
     () => ({
       initializeChat: (userId: string) => dispatch(initializeChat(userId)),
@@ -170,9 +260,10 @@ export const useChat = () => {
         dispatch(setCurrentConversation(conversation)),
       addMessage: (message: ChatMessage) => dispatch(addMessage(message)),
       updateMessageStatus: (
+        conversationId: string,
         messageId: string,
-        status: 'sent' | 'delivered' | 'read',
-      ) => dispatch(updateMessageStatus({messageId, status})),
+        status: 'delivered' | 'read',
+      ) => dispatch(updateMessageStatus({conversationId, messageId, status})),
       setTypingUsers: (users: string[]) => dispatch(setTypingUsers(users)),
       clearMessages: () => dispatch(clearMessages()),
       clearError: () => dispatch(clearChatError()),
@@ -191,6 +282,10 @@ export const useChat = () => {
       loading,
       error,
       ...actions,
+      subscribeToMessages,
+      subscribeToTypingStatus,
+      subscribeToUserStatus,
+      subscribeToConversations,
     }),
     [
       conversations,
@@ -202,6 +297,10 @@ export const useChat = () => {
       loading,
       error,
       actions,
+      subscribeToMessages,
+      subscribeToTypingStatus,
+      subscribeToUserStatus,
+      subscribeToConversations,
     ],
   );
 };

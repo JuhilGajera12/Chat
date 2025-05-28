@@ -22,6 +22,8 @@ import {useChat, useAuth, useUI} from '../hooks';
 import {ChatMessage} from '../types/chat';
 import {RouteProp} from '@react-navigation/native';
 import {RootStackParamList} from '../navigation/types';
+import {useDispatch} from 'react-redux';
+import {setMessages} from '../store/slices/chatSlice';
 
 type Props = {
   route: RouteProp<RootStackParamList, 'ChatRoom'>;
@@ -51,9 +53,27 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     error,
     getMessages,
     updateMessageStatus,
+    subscribeToMessages,
   } = useChat();
 
   const {user: currentUser} = useAuth();
+
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const unsubscribe = subscribeToMessages(
+      conversationId,
+      (newMessages: ChatMessage[]) => {
+        dispatch(setMessages(newMessages));
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [conversationId, subscribeToMessages, dispatch]);
 
   useEffect(() => {
     if (conversationId && currentUser) {
@@ -127,13 +147,18 @@ const ChatRoom: React.FC<Props> = ({route}) => {
       if (
         result.meta.requestStatus === 'fulfilled' &&
         result.payload &&
-        result.payload.message
+        typeof result.payload === 'object' &&
+        'message' in result.payload &&
+        result.payload.message &&
+        typeof result.payload.message === 'object' &&
+        'id' in result.payload.message &&
+        typeof result.payload.message.id === 'string'
       ) {
-        updateMessageStatus({
-          conversationId: conversationId,
-          messageId: result.payload.message.id,
-          status: 'delivered',
-        });
+        updateMessageStatus(
+          conversationId,
+          result.payload.message.id,
+          'delivered',
+        );
       }
       setMessageText('');
     } catch (error) {
@@ -154,39 +179,6 @@ const ChatRoom: React.FC<Props> = ({route}) => {
 
   const renderMessage = ({item}: {item: ChatMessage}) => {
     const isCurrentUser = item.senderId === currentUser?.uid;
-
-    const renderStatusIcons = () => {
-      if (!isCurrentUser) return null;
-
-      switch (item.status) {
-        case 'sent':
-          return (
-            <Image
-              source={icons.sent}
-              style={styles.statusIcon}
-              tintColor={colors.placeHolder}
-            />
-          );
-        case 'delivered':
-          return (
-            <Image
-              source={icons.delivered}
-              style={styles.statusIcon}
-              tintColor={colors.placeHolder}
-            />
-          );
-        case 'read':
-          return (
-            <Image
-              source={icons.delivered}
-              style={styles.statusIcon}
-              tintColor={colors.primaryColor}
-            />
-          );
-        default:
-          return null;
-      }
-    };
 
     return (
       <View
@@ -215,7 +207,6 @@ const ChatRoom: React.FC<Props> = ({route}) => {
                 minute: '2-digit',
               })}
             </Text>
-            {renderStatusIcons()}
           </View>
         </View>
       </View>
@@ -519,7 +510,7 @@ const styles = StyleSheet.create({
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     marginTop: hp(0.5),
   },
   statusIcon: {

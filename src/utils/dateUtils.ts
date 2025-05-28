@@ -1,37 +1,71 @@
-import moment from 'moment';
 import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
 
-const getMomentDate = (
+const getDate = (
   timestamp: FirebaseFirestoreTypes.Timestamp | number | Date,
-): moment.Moment => {
+): Date => {
   if (timestamp instanceof Date) {
-    return moment(timestamp);
+    return timestamp;
   }
-  if (timestamp && typeof (timestamp as any).toDate === 'function') {
-    return moment((timestamp as FirebaseFirestoreTypes.Timestamp).toDate());
+  if (timestamp && typeof (timestamp as FirebaseFirestoreTypes.Timestamp).toDate === 'function') {
+    return (timestamp as FirebaseFirestoreTypes.Timestamp).toDate();
   }
-  return moment(timestamp);
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp);
+  }
+  // If it's a string or any other type, try to create a Date
+  try {
+    return new Date(timestamp as any);
+  } catch {
+    return new Date(); // Fallback to current date if conversion fails
+  }
+};
+
+const isSameDay = (date1: Date, date2: Date): boolean => {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+};
+
+const isSameYear = (date1: Date, date2: Date): boolean => {
+  return date1.getFullYear() === date2.getFullYear();
+};
+
+const formatTime = (date: Date): string => {
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+};
+
+const formatDate = (date: Date, includeTime: boolean = false): string => {
+  const month = date.toLocaleString('default', { month: 'short' });
+  const day = date.getDate();
+  const year = date.getFullYear();
+  const time = includeTime ? ` ${formatTime(date)}` : '';
+  
+  return `${month} ${day}${year !== new Date().getFullYear() ? `, ${year}` : ''}${time}`;
 };
 
 export const formatMessageTime = (
   timestamp: FirebaseFirestoreTypes.Timestamp | number | Date,
 ): string => {
-  const momentDate = getMomentDate(timestamp);
-  const now = moment();
+  const date = getDate(timestamp);
+  const now = new Date();
 
-  if (momentDate.isSame(now, 'day')) {
-    return momentDate.format('h:mm A');
+  if (isSameDay(date, now)) {
+    return formatTime(date);
   }
 
-  if (momentDate.isSame(now.clone().subtract(1, 'day'), 'day')) {
-    return `Yesterday ${momentDate.format('h:mm A')}`;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) {
+    return `Yesterday ${formatTime(date)}`;
   }
 
-  if (momentDate.isSame(now, 'year')) {
-    return momentDate.format('MMM D, h:mm A');
+  if (isSameYear(date, now)) {
+    return formatDate(date, true);
   }
 
-  return momentDate.format('MMM D, YYYY h:mm A');
+  return formatDate(date, true);
 };
 
 export const formatLastSeen = (
@@ -41,45 +75,45 @@ export const formatLastSeen = (
     return 'Online';
   }
 
-  const momentDate = getMomentDate(timestamp);
-  const now = moment();
+  const date = getDate(timestamp);
+  const now = new Date();
 
-  if (momentDate.isSame(now, 'day')) {
-    return `Last seen today at ${momentDate.format('h:mm A')}`;
+  if (isSameDay(date, now)) {
+    return `Last seen today at ${formatTime(date)}`;
   }
 
-  if (momentDate.isSame(now.clone().subtract(1, 'day'), 'day')) {
-    return `Last seen yesterday at ${momentDate.format('h:mm A')}`;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) {
+    return `Last seen yesterday at ${formatTime(date)}`;
   }
 
-  if (momentDate.isSame(now, 'year')) {
-    return `Last seen on ${momentDate.format('MMM D')} at ${momentDate.format(
-      'h:mm A',
-    )}`;
+  if (isSameYear(date, now)) {
+    return `Last seen on ${formatDate(date)} at ${formatTime(date)}`;
   }
 
-  return `Last seen on ${momentDate.format(
-    'MMM D, YYYY',
-  )} at ${momentDate.format('h:mm A')}`;
+  return `Last seen on ${formatDate(date)} at ${formatTime(date)}`;
 };
 
 export const formatConversationTime = (
   timestamp: FirebaseFirestoreTypes.Timestamp | number | Date,
 ): string => {
-  const momentDate = getMomentDate(timestamp);
-  const now = moment();
+  const date = getDate(timestamp);
+  const now = new Date();
 
-  if (momentDate.isSame(now, 'day')) {
-    return momentDate.format('h:mm A');
+  if (isSameDay(date, now)) {
+    return formatTime(date);
   }
 
-  if (momentDate.isSame(now.clone().subtract(1, 'day'), 'day')) {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) {
     return 'Yesterday';
   }
 
-  if (momentDate.isSame(now, 'year')) {
-    return momentDate.format('MMM D');
+  if (isSameYear(date, now)) {
+    return formatDate(date);
   }
 
-  return momentDate.format('MMM D, YYYY');
+  return formatDate(date);
 };
