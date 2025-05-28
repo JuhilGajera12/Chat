@@ -121,6 +121,7 @@ export const useChat = () => {
     currentConversation,
     messages,
     users,
+    searchResults,
     typingUsers,
     loading,
     error,
@@ -131,6 +132,7 @@ export const useChat = () => {
       prev.currentConversation === next.currentConversation &&
       prev.messages === next.messages &&
       prev.users === next.users &&
+      prev.searchResults === next.searchResults &&
       prev.typingUsers === next.typingUsers &&
       prev.loading === next.loading &&
       prev.error === next.error,
@@ -188,6 +190,7 @@ export const useChat = () => {
       currentConversation,
       messages,
       users: users as {[key: string]: ChatUser},
+      searchResults,
       typingUsers,
       loading,
       error,
@@ -198,6 +201,7 @@ export const useChat = () => {
       currentConversation,
       messages,
       users,
+      searchResults,
       typingUsers,
       loading,
       error,

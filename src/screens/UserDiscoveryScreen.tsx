@@ -31,7 +31,7 @@ const UserDiscoveryScreen = () => {
     searchUsers,
     findConversation,
     createConversation,
-    users,
+    searchResults,
     loading,
     error,
   } = useChat();
@@ -40,6 +40,8 @@ const UserDiscoveryScreen = () => {
   useEffect(() => {
     if (searchQuery.trim()) {
       searchUsers(searchQuery.trim());
+    } else {
+      searchUsers('');
     }
   }, [searchQuery, searchUsers]);
 
@@ -186,7 +188,7 @@ const UserDiscoveryScreen = () => {
         </View>
       ) : (
         <FlatList
-          data={users}
+          data={searchResults}
           renderItem={renderUserItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContainer}

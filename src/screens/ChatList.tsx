@@ -22,6 +22,7 @@ import auth from '@react-native-firebase/auth';
 import {icons} from '../constant/icons';
 import {formatConversationTime} from '../utils/dateUtils';
 import {useChat, useSession} from '../hooks/useRedux';
+import {useFocusEffect} from '@react-navigation/native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChatList'>;
 
@@ -185,13 +186,15 @@ const ChatList: React.FC<Props> = () => {
     [],
   );
 
-  useEffect(() => {
-    if (!currentUser) return;
-
-    initializeChat(currentUser.uid).catch(error =>
-      console.error('Error initializing chat:', error),
-    );
-  }, [currentUser, initializeChat]);
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUser) {
+        initializeChat(currentUser.uid).catch(error =>
+          console.error('Error initializing chat:', error),
+        );
+      }
+    }, [currentUser, initializeChat]),
+  );
 
   if (loading) {
     return (

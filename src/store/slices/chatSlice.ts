@@ -9,28 +9,20 @@ const MESSAGES_COLLECTION = 'messages';
 const CONVERSATIONS_COLLECTION = 'conversations';
 const USERS_COLLECTION = 'users';
 
-// const toMoment = (timestamp: any): moment.Moment => {
-//   if (timestamp instanceof Date) {
-//     return moment(timestamp);
-//   }
-//   if (typeof timestamp === 'number') {
-//     return moment(timestamp);
-//   }
-//   return moment();
-// };
-
 const toTimestampNumber = (momentObj: moment.Moment): number => {
   return momentObj.valueOf();
 };
 
-interface ChatState {
+export interface ChatState {
   conversations: Conversation[];
   currentConversation: Conversation | null;
   messages: ChatMessage[];
   users: {[key: string]: ChatUser};
+  searchResults: ChatUser[];
   typingUsers: string[];
   loading: boolean;
   error: {code: string; message: string} | null;
+  searchUsers: [];
 }
 
 const initialState: ChatState = {
@@ -38,9 +30,11 @@ const initialState: ChatState = {
   currentConversation: null,
   messages: [],
   users: {},
+  searchResults: [],
   typingUsers: [],
   loading: false,
   error: null,
+  searchUsers: [],
 };
 
 // Thunks
@@ -362,7 +356,7 @@ export const initializeChat = createAsyncThunk(
       });
 
       // Fetch all users in parallel
-      const userPromises = Array.from(userIds).map(async (id) => {
+      const userPromises = Array.from(userIds).map(async id => {
         const userDoc = await firestore()
           .collection(USERS_COLLECTION)
           .doc(id)
@@ -379,7 +373,7 @@ export const initializeChat = createAsyncThunk(
         return acc;
       }, {} as {[key: string]: ChatUser});
 
-      return { conversations, users: usersMap };
+      return {conversations, users: usersMap};
     } catch (error: any) {
       throw {code: error.code, message: 'Error initializing chat'};
     }
@@ -487,7 +481,7 @@ const chatSlice = createSlice({
       })
       .addCase(searchUsers.fulfilled, (state, action) => {
         state.loading = false;
-        state.users = action.payload;
+        state.searchResults = action.payload;
       })
       .addCase(searchUsers.rejected, (state, action) => {
         state.loading = false;

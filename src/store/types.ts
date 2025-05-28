@@ -1,4 +1,3 @@
-import {AuthError} from '../types/auth';
 import {ChatMessage, Conversation, ChatUser} from '../types/chat';
 import {RootStackParamList} from '../navigation/types';
 
@@ -22,6 +21,7 @@ export interface ChatState {
   typingUsers: string[];
   loading: boolean;
   error: {code: string; message: string} | null;
+  searchResults: any[];
 }
 
 export interface NavigationState {

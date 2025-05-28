@@ -33,6 +33,8 @@ const ChatRoom: React.FC<Props> = ({route}) => {
   const inputRef = useRef<TextInput>(null);
   const appState = useRef(AppState.currentState);
   const [messageText, setMessageText] = React.useState('');
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = React.useState(true);
 
   const {
     chatRoom: {typingUsers},
@@ -47,9 +49,41 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     messages,
     loading,
     error,
+    getMessages,
   } = useChat();
 
   const {user: currentUser} = useAuth();
+
+  // Load initial messages
+  useEffect(() => {
+    if (conversationId) {
+      loadMessages();
+    }
+  }, [conversationId]);
+
+  const loadMessages = async (lastMessageId?: string) => {
+    if (!hasMoreMessages || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const result = await getMessages(conversationId, 20, lastMessageId);
+      if (result.payload && Array.isArray(result.payload)) {
+        const newMessages = result.payload as ChatMessage[];
+        setHasMoreMessages(newMessages.length === 20);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (messages.length > 0 && !isLoadingMore && hasMoreMessages) {
+      const lastMessage = messages[messages.length - 1];
+      loadMessages(lastMessage.id);
+    }
+  };
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -91,6 +125,7 @@ const ChatRoom: React.FC<Props> = ({route}) => {
         text: text.trim(),
         type: 'text',
         conversationId,
+        receiverId: route.params.otherUserId,
       });
       setMessageText('');
     } catch (error) {
@@ -143,7 +178,16 @@ const ChatRoom: React.FC<Props> = ({route}) => {
     );
   };
 
-  if (loading) {
+  const renderFooter = () => {
+    if (!isLoadingMore) return null;
+    return (
+      <View style={styles.loadingMoreContainer}>
+        <ActivityIndicator size="small" color={colors.primaryColor} />
+      </View>
+    );
+  };
+
+  if (loading && !isLoadingMore) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primaryColor} />
@@ -154,7 +198,7 @@ const ChatRoom: React.FC<Props> = ({route}) => {
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText}>{error.message || 'An error occurred'}</Text>
       </View>
     );
   }
@@ -175,10 +219,11 @@ const ChatRoom: React.FC<Props> = ({route}) => {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.messagesContainer}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-          onLayout={() => flatListRef.current?.scrollToEnd()}
+          inverted
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          contentContainerStyle={styles.messagesList}
         />
 
         {typingUsers.length > 0 && (
@@ -415,6 +460,15 @@ const styles = StyleSheet.create({
   },
   sendIconDisabled: {
     opacity: 0.5,
+  },
+  loadingMoreContainer: {
+    paddingVertical: hp(2),
+    alignItems: 'center',
+  },
+  messagesList: {
+    flexGrow: 1,
+    paddingHorizontal: wp(4),
+    paddingBottom: hp(2),
   },
 });
 
