@@ -1,5 +1,5 @@
 import React, {useEffect} from 'react';
-import {View, StyleSheet, Text, ActivityIndicator} from 'react-native';
+import {View, StyleSheet, Text, ActivityIndicator, TouchableOpacity} from 'react-native';
 import {RouteProp, useRoute} from '@react-navigation/native';
 import {RootStackParamList} from '../navigation/types';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import {fonts} from '../constant/fonts';
 import {fontSize, hp, wp} from '../helpers/globalFunction';
 import {useAppDispatch, useAppSelector} from '../hooks/useRedux';
 import {fetchPostById, clearCurrentPost} from '../store/slices/postSlice';
+import {handleShare} from '../utils/linkUtils';
 
 type PostDetailsRouteProp = RouteProp<RootStackParamList, 'PostDetails'>;
 
@@ -23,6 +24,12 @@ const PostDetails = () => {
       dispatch(clearCurrentPost());
     };
   }, [dispatch, postId]);
+
+  const onShare = () => {
+    if (currentPost) {
+      handleShare('post', currentPost.id);
+    }
+  };
 
   if (loading) {
     return (
@@ -56,8 +63,13 @@ const PostDetails = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <View style={styles.header}>
         <Text style={styles.title}>Post Details</Text>
+        <TouchableOpacity onPress={onShare} style={styles.shareButton}>
+          <Text style={styles.shareButtonText}>Share</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.content}>
         <Text style={styles.idText}>Post ID: {currentPost.id}</Text>
         <Text style={styles.creatorText}>Creator: {currentPost.creator}</Text>
         <Text style={styles.postText}>{currentPost.post}</Text>
@@ -71,11 +83,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  shareButton: {
+    padding: wp(2),
+    backgroundColor: colors.primaryColor,
+    borderRadius: wp(2),
+  },
+  shareButtonText: {
+    color: colors.white,
+    fontSize: fontSize(14),
+    fontFamily: fonts.regular,
+  },
   content: {
     flex: 1,
     padding: wp(4),
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   title: {
     fontSize: fontSize(24),
