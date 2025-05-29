@@ -2,25 +2,42 @@ import {NavigatorScreenParams} from '@react-navigation/native';
 import {MaterialTopTabScreenProps} from '@react-navigation/material-top-tabs';
 import {LinkingOptions} from '@react-navigation/native';
 
+type EmptyParams = Record<string, never>;
+
+type LoginScreenParams = EmptyParams;
+type SignupScreenParams = EmptyParams;
+type UserDiscoveryScreenParams = EmptyParams;
+type ChatListScreenParams = EmptyParams;
+
+type ChatRoomScreenParams = {
+  otherUserId: string;
+  otherUserName: string;
+  conversationId: string;
+};
+
+type PostDetailsScreenParams = {
+  postId: string;
+};
+
+type TaskDetailsScreenParams = {
+  taskId: string;
+};
+
+type MainTabsScreenParams = NavigatorScreenParams<MainTabParamList>;
+
 export type RootStackParamList = {
-  Login: undefined;
-  Signup: undefined;
-  MainTabs: NavigatorScreenParams<MainTabParamList>;
-  ChatRoom: {
-    otherUserId: string;
-    otherUserName: string;
-  };
-  UserDiscovery: undefined;
-  PostDetails: {
-    postId: string;
-  };
-  TaskDetails: {
-    taskId: string;
-  };
+  Login: LoginScreenParams;
+  Signup: SignupScreenParams;
+  MainTabs: MainTabsScreenParams;
+  ChatRoom: ChatRoomScreenParams;
+  UserDiscovery: UserDiscoveryScreenParams;
+  PostDetails: PostDetailsScreenParams;
+  TaskDetails: TaskDetailsScreenParams;
+  ChatList: ChatListScreenParams;
 };
 
 export type MainTabParamList = {
-  Chats: undefined;
+  Chats: EmptyParams;
   Collection: {
     screen?: 'Tasks' | 'Posts';
     params?: {
@@ -31,14 +48,13 @@ export type MainTabParamList = {
 };
 
 export type CollectionTabParamList = {
-  Tasks: undefined;
-  Posts: undefined;
+  Tasks: EmptyParams;
+  Posts: EmptyParams;
 };
 
 export type CollectionScreenProps =
   MaterialTopTabScreenProps<CollectionTabParamList>;
 
-// Deep linking configuration
 export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['example://', 'https://example.com'],
   config: {

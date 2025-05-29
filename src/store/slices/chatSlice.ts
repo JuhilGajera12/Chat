@@ -27,7 +27,7 @@ export interface ChatState {
   typingUsers: string[];
   loading: boolean;
   error: {code: string; message: string} | null;
-  searchUsers: [];
+  searchUsers: ChatUser[];
 }
 
 const initialState: ChatState = {

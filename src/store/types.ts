@@ -1,6 +1,6 @@
 import {store} from './index';
 import {RootStackParamList} from '../navigation/types';
-import {ChatMessage} from '../types/chat';
+import {ChatMessage, Conversation, ChatUser} from '../types/chat';
 
 export interface AuthState {
   user: {
@@ -28,15 +28,15 @@ export interface SessionState {
 }
 
 export interface ChatState {
-  conversations: any[];
-  currentConversation: any | null;
+  conversations: Conversation[];
+  currentConversation: Conversation | null;
   messages: ChatMessage[];
-  users: {[key: string]: any};
-  searchResults: any[];
+  users: {[key: string]: ChatUser};
+  searchResults: ChatUser[];
   typingUsers: string[];
   loading: boolean;
   error: {code: string; message: string} | null;
-  searchUsers: any[];
+  searchUsers: ChatUser[];
 }
 
 export interface NavigationState {
